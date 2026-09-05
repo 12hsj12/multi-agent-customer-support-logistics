@@ -12,11 +12,6 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/app
 
-# curl 用于健康检查；不再需要 gcc/g++（已移除本地 ML 模型）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
 # ── 阶段 2：安装 Python 依赖 ──────────────────────────────────────────────────
 FROM base AS dependencies
 
@@ -25,12 +20,25 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
 # 预下载 ChromaDB 内置的 ONNX embedding 模型（~79MB），避免运行时下载超时
-RUN mkdir -p /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2 && \
-    curl -L --retry 3 --retry-delay 5 -o /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2/onnx.tar.gz \
-    https://chroma-onnx-models.s3.amazonaws.com/all-MiniLM-L6-v2/onnx.tar.gz && \
-    cd /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2 && \
-    tar -xzf onnx.tar.gz && \
-    rm onnx.tar.gz
+RUN python - <<'PY'
+import pathlib
+import shutil
+import tarfile
+import urllib.request
+
+url = "https://chroma-onnx-models.s3.amazonaws.com/all-MiniLM-L6-v2/onnx.tar.gz"
+dest_dir = pathlib.Path("/root/.cache/chroma/onnx_models/all-MiniLM-L6-v2")
+dest_dir.mkdir(parents=True, exist_ok=True)
+archive = dest_dir / "onnx.tar.gz"
+
+with urllib.request.urlopen(url, timeout=60) as response, open(archive, "wb") as target:
+    shutil.copyfileobj(response, target)
+
+with tarfile.open(archive, "r:gz") as tar:
+    tar.extractall(dest_dir)
+
+archive.unlink()
+PY
 
 # ── 阶段 3：生产镜像 ──────────────────────────────────────────────────────────
 FROM base AS production
@@ -55,7 +63,7 @@ USER echomind
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()"
 
 CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
