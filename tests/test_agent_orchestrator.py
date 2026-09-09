@@ -4,6 +4,7 @@ from agents.agent_orchestrator import (
     AgentProfile,
     AgentResponse,
     AgentType,
+    AgentOrchestrator,
     BillingAgent,
     EscalationAgent,
     GeneralAgent,
@@ -108,6 +109,21 @@ def test_routing_decision_can_target_escalation_pool():
     )
     assert decision.agent_types == [AgentType.ESCALATION]
     assert not decision.multi_agent
+
+
+def test_composite_request_routes_explicit_billing_signal_as_supporting_agent():
+    orchestrator = AgentOrchestrator.__new__(AgentOrchestrator)
+    orchestrator._pool = {
+        AgentType.GENERAL: [object()],
+        AgentType.TECHNICAL: [object()],
+        AgentType.BILLING: [object()],
+    }
+
+    decision = orchestrator._route_decision(make_request())
+
+    assert decision.primary_agent is AgentType.TECHNICAL
+    assert decision.supporting_agents == [AgentType.BILLING]
+    assert decision.multi_agent is True
 
 
 def test_agent_tool_scopes_are_real_and_isolated():
