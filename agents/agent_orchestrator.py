@@ -122,6 +122,23 @@ class AgentResponse:
 
 
 @dataclass
+class AgentCallResult:
+    """一次 LLM 调用的请求级结果，不在共享 Agent 实例上保存状态。"""
+    content: str
+    tools_used: List[str] = field(default_factory=list)
+    tool_traces: List[Dict[str, Any]] = field(default_factory=list)
+
+
+class AgentCallError(RuntimeError):
+    """保留失败前已经发生的工具调用，供请求 trace 记录。"""
+
+    def __init__(self, message: str, tools_used: List[str], tool_traces: List[Dict[str, Any]]):
+        super().__init__(message)
+        self.tools_used = list(tools_used)
+        self.tool_traces = list(tool_traces)
+
+
+@dataclass
 class Request:
     message:     str
     user_id:     str
@@ -191,8 +208,6 @@ class BaseAgent:
         self._model  = self.profile.model or model
         self._skill_manager = skill_manager
         self.stats   = AgentStats()
-        self._last_tools_used: List[str] = []
-        self._last_tool_traces: List[Dict[str, Any]] = []
         self._shared_tools: Dict[str, AgentToolSpec] = {}
 
     def get_tools(self) -> Dict[str, AgentToolSpec]:
@@ -205,36 +220,37 @@ class BaseAgent:
     async def handle(self, req: Request) -> AgentResponse:
         t0 = time.monotonic()
         self.stats.total += 1
-        self._last_tools_used = []
-        self._last_tool_traces = []
         try:
-            content = await self._call_llm(req)
+            call_result = await self._call_llm(req)
             ms = (time.monotonic() - t0) * 1000
             self.stats.success += 1
             self.stats.total_ms += ms
-            escalate = self._needs_escalation(content)
+            escalate = self._needs_escalation(call_result.content)
             return AgentResponse(
                 agent_type=self.agent_type,
-                content=content,
+                content=call_result.content,
                 success=True,
                 latency_ms=ms,
                 escalate=escalate,
-                tools_used=list(self._last_tools_used),
-                tool_traces=list(self._last_tool_traces),
+                tools_used=call_result.tools_used,
+                tool_traces=call_result.tool_traces,
             )
         except Exception as ex:
             ms = (time.monotonic() - t0) * 1000
             self.stats.total_ms += ms
             logger.error(f"{self.agent_type.value} 处理失败: {ex}")
+            tools_used = ex.tools_used if isinstance(ex, AgentCallError) else []
+            tool_traces = ex.tool_traces if isinstance(ex, AgentCallError) else []
             return AgentResponse(
                 agent_type=self.agent_type,
                 content="抱歉，处理您的请求时出现问题，请稍后重试。",
                 success=False,
                 latency_ms=ms,
-                tool_traces=list(self._last_tool_traces),
+                tools_used=list(tools_used),
+                tool_traces=list(tool_traces),
             )
 
-    async def _call_llm(self, req: Request) -> str:
+    async def _call_llm(self, req: Request) -> AgentCallResult:
         def _clean(s: str) -> str:
             return s.encode("utf-8", errors="ignore").decode("utf-8")
 
@@ -255,85 +271,95 @@ class BaseAgent:
         tools = self.get_tools()
         tools_used: List[str] = []
         tool_traces: List[Dict[str, Any]] = []
-        for _ in range(3):
-            request_kwargs: Dict[str, Any] = {
-                "model": self._model,
-                "max_tokens": self.profile.max_tokens,
-                "temperature": self.profile.temperature,
-                "system": self._build_system_prompt(req),
-                "messages": messages,
-            }
-            if tools:
-                request_kwargs["tools"] = [
-                    {
-                        "name": spec.name,
-                        "description": spec.description,
-                        "input_schema": spec.input_schema,
-                    }
-                    for spec in tools.values()
-                ]
-            resp = await self._client.messages.create(**request_kwargs)
-            tool_uses = [block for block in (resp.content or []) if self._block_type(block) == "tool_use"]
-            if not tool_uses:
-                self._last_tools_used = tools_used
-                return extract_text_content(resp.content)
+        try:
+            for _ in range(3):
+                request_kwargs: Dict[str, Any] = {
+                    "model": self._model,
+                    "max_tokens": self.profile.max_tokens,
+                    "temperature": self.profile.temperature,
+                    "system": self._build_system_prompt(req),
+                    "messages": messages,
+                }
+                if tools:
+                    request_kwargs["tools"] = [
+                        {
+                            "name": spec.name,
+                            "description": spec.description,
+                            "input_schema": spec.input_schema,
+                        }
+                        for spec in tools.values()
+                    ]
+                resp = await self._client.messages.create(**request_kwargs)
+                tool_uses = [block for block in (resp.content or []) if self._block_type(block) == "tool_use"]
+                if not tool_uses:
+                    return AgentCallResult(
+                        content=extract_text_content(resp.content),
+                        tools_used=list(tools_used),
+                        tool_traces=list(tool_traces),
+                    )
 
-            messages.append({"role": "assistant", "content": resp.content})
-            tool_results = []
-            for block in tool_uses:
-                name = self._block_value(block, "name")
-                tool_use_id = self._block_value(block, "id")
-                args = self._block_value(block, "input") or {}
-                spec = tools.get(name)
-                tool_t0 = time.monotonic()
-                call_success = True
-                result_success: Optional[bool] = None
-                error_text = ""
-                if spec is None:
-                    call_success = False
-                    result: Any = {"success": False, "error": f"工具不在 {self.agent_type.value} Agent 白名单中"}
-                    error_text = result["error"]
-                else:
-                    try:
-                        self._validate_tool_input(spec, args)
-                        result = spec.handler(req, args)
-                        if inspect.isawaitable(result):
-                            result = await result
-                        tools_used.append(name)
-                        if isinstance(result, dict) and "success" in result:
-                            result_success = bool(result.get("success"))
-                    except Exception as ex:
+                messages.append({"role": "assistant", "content": resp.content})
+                tool_results = []
+                for block in tool_uses:
+                    name = self._block_value(block, "name")
+                    tool_use_id = self._block_value(block, "id")
+                    args = self._block_value(block, "input") or {}
+                    spec = tools.get(name)
+                    tool_t0 = time.monotonic()
+                    call_success = True
+                    result_success: Optional[bool] = None
+                    error_text = ""
+                    if spec is None:
                         call_success = False
-                        logger.warning("Agent 工具 %s 执行失败: %s", name, ex)
-                        error_text = str(ex)
-                        result = {"success": False, "error": error_text}
-                tool_latency_ms = (time.monotonic() - tool_t0) * 1000
-                if not error_text and isinstance(result, dict):
-                    error_text = str(result.get("error", "") or "")
-                tool_traces.append(
-                    {
-                        "agent_type": self.agent_type.value,
-                        "tool_name": name,
+                        result: Any = {"success": False, "error": f"工具不在 {self.agent_type.value} Agent 白名单中"}
+                        error_text = result["error"]
+                    else:
+                        try:
+                            self._validate_tool_input(spec, args)
+                            result = spec.handler(req, args)
+                            if inspect.isawaitable(result):
+                                result = await result
+                            tools_used.append(name)
+                            if isinstance(result, dict) and "success" in result:
+                                result_success = bool(result.get("success"))
+                        except Exception as ex:
+                            call_success = False
+                            logger.warning("Agent 工具 %s 执行失败: %s", name, ex)
+                            error_text = str(ex)
+                            result = {"success": False, "error": error_text}
+                    tool_latency_ms = (time.monotonic() - tool_t0) * 1000
+                    if not error_text and isinstance(result, dict):
+                        error_text = str(result.get("error", "") or "")
+                    tool_traces.append(
+                        {
+                            "agent_type": self.agent_type.value,
+                            "tool_name": name,
+                            "tool_use_id": tool_use_id,
+                            "input": dict(args),
+                            "success": call_success,
+                            "result_success": result_success,
+                            "latency_ms": round(tool_latency_ms, 1),
+                            "cached": bool(result.get("cached")) if isinstance(result, dict) else False,
+                            "reranked": bool(result.get("reranked")) if isinstance(result, dict) else False,
+                            "error": error_text,
+                        }
+                    )
+                    tool_results.append({
+                        "type": "tool_result",
                         "tool_use_id": tool_use_id,
-                        "input": dict(args),
-                        "success": call_success,
-                        "result_success": result_success,
-                        "latency_ms": round(tool_latency_ms, 1),
-                        "cached": bool(result.get("cached")) if isinstance(result, dict) else False,
-                        "reranked": bool(result.get("reranked")) if isinstance(result, dict) else False,
-                        "error": error_text,
-                    }
-                )
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use_id,
-                    "content": json.dumps(result, ensure_ascii=False),
-                })
-            messages.append({"role": "user", "content": tool_results})
+                        "content": json.dumps(result, ensure_ascii=False),
+                    })
+                messages.append({"role": "user", "content": tool_results})
 
-        self._last_tools_used = tools_used
-        self._last_tool_traces = tool_traces
-        raise RuntimeError(f"{self.agent_type.value} 工具调用超过最大轮数")
+            raise AgentCallError(
+                f"{self.agent_type.value} 工具调用超过最大轮数",
+                tools_used,
+                tool_traces,
+            )
+        except AgentCallError:
+            raise
+        except Exception as ex:
+            raise AgentCallError(str(ex), tools_used, tool_traces) from ex
 
     @staticmethod
     def _block_type(block: Any) -> Optional[str]:
@@ -638,6 +664,10 @@ class AgentOrchestrator:
         # 其余意图 → GENERAL（默认）
     }
 
+    # Monitor 的降权达到该值时，专业 Agent 暂停接收新请求并回退到 GeneralAgent。
+    # 使用环境变量可按线上数据调整，默认值与 Monitor 的严重成功率惩罚上限一致。
+    MONITOR_FALLBACK_PENALTY = 0.5
+
     def __init__(
         self,
         api_key:  str,
@@ -887,10 +917,16 @@ class AgentOrchestrator:
             )
 
         scores = self._domain_scores(req)
+        degraded_agents = {
+            agent_type
+            for agent_type in (AgentType.TECHNICAL, AgentType.BILLING)
+            if scores.get(agent_type, 0.0) > 0 and self._monitor_degraded(agent_type)
+        }
         available_scores = {
             agent_type: score
             for agent_type, score in scores.items()
-            if agent_type == AgentType.GENERAL or self._pool.get(agent_type)
+            if agent_type == AgentType.GENERAL
+            or (self._pool.get(agent_type) and agent_type not in degraded_agents)
         }
         if not available_scores:
             return RoutingDecision(
@@ -919,6 +955,9 @@ class AgentOrchestrator:
             ]
 
         reason = self._routing_reason(req, available_scores, primary_agent, supporting_agents)
+        if degraded_agents:
+            degraded_text = ", ".join(sorted(agent.value for agent in degraded_agents))
+            reason += f", monitor_fallback=[{degraded_text}]"
         return RoutingDecision(
             primary_agent=primary_agent,
             supporting_agents=supporting_agents,
@@ -1056,6 +1095,24 @@ class AgentOrchestrator:
         if not agents:
             return None
         return max(agents, key=lambda a: a.stats.routing_score())
+
+    def _monitor_degraded(self, agent_type: AgentType) -> bool:
+        """专业 Agent 降权过高时由路由层回退，确保单实例部署也能生效。"""
+        if agent_type in (AgentType.GENERAL, AgentType.ESCALATION):
+            return False
+        agents = self._pool.get(agent_type, [])
+        if not agents:
+            return False
+        threshold = _env_float(
+            "ECHOMIND_MONITOR_FALLBACK_PENALTY",
+            self.MONITOR_FALLBACK_PENALTY,
+        )
+        penalties = [
+            float(getattr(getattr(agent, "stats", None), "monitor_penalty", 0.0) or 0.0)
+            for agent in agents
+        ]
+        # 只要还有一个健康实例就继续使用该专业类型；全部高降权时才回退。
+        return min(penalties) >= min(max(threshold, 0.0), 0.9)
 
     async def _execute(self, req: Request, agent_type: AgentType) -> AgentResponse:
         """执行 Agent，失败时降级到 GeneralAgent。"""

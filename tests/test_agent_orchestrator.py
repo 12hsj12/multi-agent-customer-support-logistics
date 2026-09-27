@@ -211,9 +211,78 @@ def test_tool_use_round_trip_executes_only_whitelisted_tool():
 
     assert response.success is True
     assert response.tools_used == ["lookup_error_code"]
+    assert len(response.tool_traces) == 1
+    assert response.tool_traces[0]["tool_name"] == "lookup_error_code"
+    assert response.tool_traces[0]["input"] == {"error_code": "401"}
+    assert response.tool_traces[0]["success"] is True
     assert len(client.calls) == 2
     assert {tool["name"] for tool in client.calls[0]["tools"]} == {
         "lookup_error_code",
         "build_diagnostic_plan",
     }
     assert "tool_result" in str(client.calls[1]["messages"])
+
+
+def test_concurrent_requests_keep_tool_traces_isolated():
+    class ToolUseBlock:
+        type = "tool_use"
+
+        def __init__(self, code):
+            self.id = f"toolu_{code}"
+            self.name = "lookup_error_code"
+            self.input = {"error_code": code}
+
+    class TextBlock:
+        type = "text"
+
+        def __init__(self, text):
+            self.text = text
+
+    class ConcurrentClient:
+        class Messages:
+            async def create(inner, **kwargs):
+                messages = kwargs["messages"]
+                last_content = messages[-1]["content"]
+                if isinstance(last_content, list):
+                    code = "500" if "500" in str(last_content) else "401"
+                    await asyncio.sleep(0)
+                    return type("Response", (), {"content": [TextBlock(f"{code} 排查完成")]})()
+                code = "500" if "500" in str(last_content) else "401"
+                await asyncio.sleep(0.01 if code == "401" else 0)
+                return type("Response", (), {"content": [ToolUseBlock(code)]})()
+
+        def __init__(self):
+            self.messages = self.Messages()
+
+    async def run_both():
+        agent = TechnicalAgent(ConcurrentClient(), "test-model")
+        return await asyncio.gather(
+            agent.handle(make_request(message="登录报 401", entities={"error_code": ["401"]})),
+            agent.handle(make_request(message="页面报 500", entities={"error_code": ["500"]})),
+        )
+
+    first, second = asyncio.run(run_both())
+    assert first.tool_traces[0]["input"] == {"error_code": "401"}
+    assert second.tool_traces[0]["input"] == {"error_code": "500"}
+
+
+def test_monitor_penalty_falls_back_to_general_agent():
+    orchestrator = AgentOrchestrator.__new__(AgentOrchestrator)
+    general = GeneralAgent(FakeClient(), "test-model")
+    technical = TechnicalAgent(FakeClient(), "test-model")
+    billing = BillingAgent(FakeClient(), "test-model")
+    technical.stats.monitor_penalty = 0.5
+    orchestrator._pool = {
+        AgentType.GENERAL: [general],
+        AgentType.TECHNICAL: [technical],
+        AgentType.BILLING: [billing],
+    }
+
+    decision = orchestrator._route_decision(make_request(
+        message="登录报 401",
+        entities={"error_code": ["401"]},
+    ))
+
+    assert decision.primary_agent is AgentType.GENERAL
+    assert decision.supporting_agents == []
+    assert "monitor_fallback=[technical]" in decision.reason

@@ -91,9 +91,10 @@ class KnowledgeBase:
                 metas.append({"title": title, "chunk_index": i, "total_chunks": len(chunks)})
 
         if ids:
-            # ChromaDB 会自动生成 Embedding
-            self._collection.add(ids=ids, documents=docs, metadatas=metas)
-            logger.info(f"知识库导入 {len(ids)} 个文档片段")
+            # ID 由文档内容稳定生成；upsert 使重复导入幂等，同时允许同 ID 内容更新。
+            # ChromaDB 会自动生成或更新 Embedding。
+            self._collection.upsert(ids=ids, documents=docs, metadatas=metas)
+            logger.info(f"知识库写入 {len(ids)} 个文档片段")
 
         return len(ids)
 
