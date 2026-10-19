@@ -1,0 +1,57 @@
+{
+  "dataset_id": "echomind-g4-intents-v1",
+  "created_at": "2026-10-17",
+  "description": "固定版合成中文客服意图与物流升级评测集；可人工复核，不含真实用户数据。分类样例尽量避开现有 few-shot 模板原句。",
+  "baseline_commit": "ec0a487",
+  "common_label_rule": "将 logistics_lost、logistics_damaged、logistics_dispute、logistics_delay、logistics_address 折叠为旧标签 logistics。",
+  "cases": [
+    {"id":"lost_01","message":"包裹页停在揽收后第八天没有变化，我怀疑快件在转运中丢了。","expected_intent":"logistics_lost","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"lost_02","message":"这票快递从上周起就没有扫描记录，麻烦按疑似遗失帮我处理。","expected_intent":"logistics_lost","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"lost_03","message":"我一直没拿到包裹，物流轨迹连续多日没更新，想确认是不是丢件。","expected_intent":"logistics_lost","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"damaged_01","message":"拆箱发现杯子裂了，外包装也有挤压痕迹，后续该怎么举证？","expected_intent":"logistics_damaged","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"damaged_02","message":"送到的型号跟订单不一致，箱子里装成了另一款商品。","expected_intent":"logistics_damaged","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"damaged_03","message":"包裹已经到了，但少了一件商品，面单和纸箱我都保留着。","expected_intent":"logistics_damaged","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"dispute_01","message":"物流页面写着本人签收，可我那天一直在公司，家里没人代收。","expected_intent":"logistics_dispute","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"dispute_02","message":"系统显示前台签收，但我们小区没有前台，我手上也没收到东西。","expected_intent":"logistics_dispute","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"dispute_03","message":"签收记录和实际情况对不上，想核对包裹最后交给了谁。","expected_intent":"logistics_dispute","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"delay_01","message":"揽收后四天没有新节点，页面上的预计送达日期也已经过了。","expected_intent":"logistics_delay","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"delay_02","message":"这票快递在同一个中转站停了好几天，想查一下是不是配送卡住。","expected_intent":"logistics_delay","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"delay_03","message":"原定昨天送到，现在还没有派送记录，可以帮我处理延误吗？","expected_intent":"logistics_delay","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"address_01","message":"下单时选错了收货地址，包裹还没发出，能不能申请更正？","expected_intent":"logistics_address","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"address_02","message":"收件地址的楼栋号填错了，我想在配送前改成正确的。","expected_intent":"logistics_address","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+    {"id":"address_03","message":"订单已经发出但还在中转，我发现原来的地址过期了，该怎么修改？","expected_intent":"logistics_address","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["logistics"],"local":["logistics"]}},
+
+    {"id":"logistics_01","message":"帮我看一下订单这两天的配送进度。","expected_intent":"logistics","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+    {"id":"logistics_02","message":"这个包裹预计什么时候送到？","expected_intent":"logistics","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+    {"id":"logistics_03","message":"请查一下快递现在到哪一站了。","expected_intent":"logistics","common_expected_intent":"logistics","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+
+    {"id":"greeting_01","message":"早上好，能帮我看下一个小问题吗？","expected_intent":"greeting","common_expected_intent":"greeting","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+    {"id":"greeting_02","message":"你好，我想咨询一下会员服务。","expected_intent":"greeting","common_expected_intent":"greeting","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+    {"id":"complaint_01","message":"我已经联系好几次了，问题一直没人解释，体验很差。","expected_intent":"complaint","common_expected_intent":"complaint","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+    {"id":"complaint_02","message":"这么久都没有答复，客服的处理方式让我很失望。","expected_intent":"complaint","common_expected_intent":"complaint","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+    {"id":"request_01","message":"请帮我把这笔订单取消，我已经不需要了。","expected_intent":"request","common_expected_intent":"request","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+    {"id":"request_02","message":"麻烦把我的账号昵称更新一下，其他资料不变。","expected_intent":"account","common_expected_intent":"account","score_intent":true,"expected_agents_by_variant":{"baseline":["billing"],"logistics":["billing"],"local":["billing"]}},
+    {"id":"refund_01","message":"退回商品已经寄出，退款状态到现在还没有变化。","expected_intent":"refund","common_expected_intent":"refund","score_intent":true,"expected_agents_by_variant":{"baseline":["billing"],"logistics":["billing"],"local":["billing"]}},
+    {"id":"refund_02","message":"想确认上周提交的退货申请有没有审核完。","expected_intent":"refund","common_expected_intent":"refund","score_intent":true,"expected_agents_by_variant":{"baseline":["billing"],"logistics":["billing"],"local":["billing"]}},
+    {"id":"invoice_01","message":"这笔消费的电子票据应该到哪里下载？","expected_intent":"invoice","common_expected_intent":"invoice","score_intent":true,"expected_agents_by_variant":{"baseline":["billing"],"logistics":["billing"],"local":["billing"]}},
+    {"id":"invoice_02","message":"请把本月服务费的发票开成公司抬头。","expected_intent":"invoice","common_expected_intent":"invoice","score_intent":true,"expected_agents_by_variant":{"baseline":["billing"],"logistics":["billing"],"local":["billing"]}},
+    {"id":"payment_01","message":"账单里同一笔服务费出现了两次扣款。","expected_intent":"payment_issue","common_expected_intent":"payment_issue","score_intent":true,"expected_agents_by_variant":{"baseline":["billing"],"logistics":["billing"],"local":["billing"]}},
+    {"id":"payment_02","message":"付款页面提示成功，但银行卡余额没有相应变化。","expected_intent":"payment_issue","common_expected_intent":"payment_issue","score_intent":true,"expected_agents_by_variant":{"baseline":["billing"],"logistics":["billing"],"local":["billing"]}},
+    {"id":"login_01","message":"输入验证码后页面又跳回登录页，始终进不去。","expected_intent":"technical_login","common_expected_intent":"technical_login","score_intent":true,"expected_agents_by_variant":{"baseline":["technical"],"logistics":["technical"],"local":["technical"]}},
+    {"id":"login_02","message":"网页登录提示 401，重新输入密码仍然无法进入账户。","expected_intent":"technical_login","common_expected_intent":"technical_login","score_intent":true,"expected_agents_by_variant":{"baseline":["technical"],"logistics":["technical"],"local":["technical"]}},
+    {"id":"handoff_01","message":"这个问题需要人工客服接手核实，请转给人工专员。","expected_intent":"human_handoff","common_expected_intent":"human_handoff","score_intent":true,"expected_agents_by_variant":{"baseline":["escalation"],"logistics":["escalation"],"local":["escalation"]}},
+    {"id":"handoff_02","message":"请结束自动答复，安排人工客服查看当前会话。","expected_intent":"human_handoff","common_expected_intent":"human_handoff","score_intent":true,"expected_agents_by_variant":{"baseline":["escalation"],"logistics":["escalation"],"local":["escalation"]}},
+    {"id":"other_01","message":"我想问一下那个事情是不是已经按之前说的方式算了？","expected_intent":"other","common_expected_intent":"other","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+    {"id":"other_02","message":"请问这里能办理和订单、账户无关的线下业务吗？","expected_intent":"other","common_expected_intent":"other","score_intent":true,"expected_agents_by_variant":{"baseline":["general"],"logistics":["general"],"local":["general"]}},
+
+    {"id":"composite_01","message":"登录页持续报 401，同时本月订阅费被扣了两次，请先排查登录，账单也要核实。","expected_intent":"technical_login","common_expected_intent":"technical_login","score_intent":false,"expected_agents_by_variant":{"baseline":["technical","billing"],"logistics":["technical","billing"],"local":["technical","billing"]}},
+    {"id":"composite_02","message":"物流签收记录和实际收货情况不符，我没拿到包裹；同时我想申请退款。","expected_intent":"logistics_dispute","common_expected_intent":"logistics","score_intent":false,"expected_agents_by_variant":{"baseline":["billing"],"logistics":["logistics","billing"],"local":["logistics","billing"]}}
+  ],
+  "logistics_tool_cases": [
+    {"id":"lost_threshold_met","intent":"logistics_lost","tracking_no":"MOCK-LOST-0002","history":[{"role":"user","content":"包裹一直找不到，怀疑丢件"},{"role":"assistant","content":"请提供运单号"},{"role":"user","content":"轨迹几天没有变化，快递还是没收到"}],"expected_success":true,"expected_escalation_candidate":true},
+    {"id":"lost_followup_below_threshold","intent":"logistics_lost","tracking_no":"MOCK-LOST-0002","history":[{"role":"user","content":"包裹疑似丢件，物流没有更新"}],"expected_success":true,"expected_escalation_candidate":false},
+    {"id":"non_lost_intent_on_stalled_record","intent":"logistics_delay","tracking_no":"MOCK-LOST-0002","history":[{"role":"user","content":"物流延误，包裹没有更新"},{"role":"user","content":"配送停滞多久了"}],"expected_success":true,"expected_escalation_candidate":false},
+    {"id":"missing_tracking_number","intent":"logistics_lost","tracking_no":null,"history":[],"expected_success":false,"expected_escalation_candidate":null},
+    {"id":"unknown_tracking_number","intent":"logistics_lost","tracking_no":"MOCK-UNKNOWN-9999","history":[],"expected_success":false,"expected_escalation_candidate":null}
+  ]
+}

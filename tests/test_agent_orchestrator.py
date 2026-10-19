@@ -8,6 +8,7 @@ from agents.agent_orchestrator import (
     BillingAgent,
     EscalationAgent,
     GeneralAgent,
+    LogisticsAgent,
     Request,
     ResponseComposer,
     RoutingDecision,
@@ -56,6 +57,7 @@ def test_agent_profiles_have_distinct_contracts_and_generation_config():
     assert "search_knowledge_base" in GeneralAgent.profile.tool_scope
     assert "lookup_error_code" in TechnicalAgent.profile.tool_scope
     assert "check_billing_fields" in BillingAgent.profile.tool_scope
+    assert "query_logistics" in LogisticsAgent.profile.tool_scope
 
 
 def test_domain_agents_build_different_role_packets():
@@ -154,9 +156,10 @@ def test_shared_rag_tool_is_available_to_all_agents():
     general = GeneralAgent(FakeClient(), "test-model")
     technical = TechnicalAgent(FakeClient(), "test-model")
     billing = BillingAgent(FakeClient(), "test-model")
+    logistics = LogisticsAgent(FakeClient(), "test-model")
     escalation = EscalationAgent(FakeClient(), "test-model")
 
-    for agent in (general, technical, billing, escalation):
+    for agent in (general, technical, billing, logistics, escalation):
         agent.set_shared_tools(shared)
         tools = agent.get_tools()
         assert "search_knowledge_base" in tools

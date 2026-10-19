@@ -18,8 +18,12 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, TYPE_CHECKING, Union
+
+from core.intent_recognizer import IntentCategory
 
 if TYPE_CHECKING:
     from agents.agent_orchestrator import Request
@@ -59,6 +63,28 @@ def make_tool(
     )
 
 
+def mask_tracking_no(value: Any) -> str:
+    """在工具轨迹和交接信息中隐藏运单号，只保留末四位。"""
+    tracking_no = str(value or "").strip()
+    if not tracking_no:
+        return ""
+    if len(tracking_no) <= 4:
+        return "*" * len(tracking_no)
+    return "*" * (len(tracking_no) - 4) + tracking_no[-4:]
+
+
+def redact_entities(entities: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """复制并脱敏结构化实体，避免交接摘要暴露完整运单号。"""
+    redacted = dict(entities or {})
+    if "tracking_no" in redacted:
+        values = redacted["tracking_no"]
+        if isinstance(values, list):
+            redacted["tracking_no"] = [mask_tracking_no(value) for value in values]
+        elif values:
+            redacted["tracking_no"] = mask_tracking_no(values)
+    return redacted
+
+
 def inspect_request_context(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
     """通用客服工具：返回脱敏后的当前请求快照。"""
     return {
@@ -66,7 +92,7 @@ def inspect_request_context(req: Request, args: Dict[str, Any]) -> Dict[str, Any
         "intent_group": req.intent_group,
         "urgency": req.urgency.name if req.urgency else None,
         "intent_confidence": round(req.intent_confidence, 4),
-        "entities": req.entities or {},
+        "entities": redact_entities(req.entities),
         "context_available": bool(req.context),
         "requested_focus": str(args.get("focus", "general"))[:40],
     }
@@ -76,8 +102,18 @@ def suggest_required_fields(req: Request, args: Dict[str, Any]) -> Dict[str, Any
     """通用客服工具：按业务类型计算下一轮只需询问的字段。"""
     intent = req.intent.value if req.intent else "other"
     fields: List[str] = []
-    if intent in {"order_status", "logistics"}:
+    if intent == "order_status":
         fields = ["订单号或下单时间"]
+    elif intent == "logistics":
+        fields = ["运单号（查询物流轨迹时）或订单号"]
+    elif intent in {
+        "logistics_lost",
+        "logistics_damaged",
+        "logistics_dispute",
+        "logistics_delay",
+        "logistics_address",
+    }:
+        fields = ["运单号"]
     elif intent in {"account", "account_security"}:
         fields = ["登录方式或账号标识", "问题发生时间"]
     elif intent in {"complaint", "request"}:
@@ -87,7 +123,7 @@ def suggest_required_fields(req: Request, args: Dict[str, Any]) -> Dict[str, Any
     return {
         "intent": intent,
         "required_fields": fields,
-        "known_entities": req.entities or {},
+        "known_entities": redact_entities(req.entities),
     }
 
 
@@ -169,8 +205,103 @@ def create_handoff_summary(req: Request, args: Dict[str, Any]) -> Dict[str, Any]
         "reason": str(args.get("reason", "需要人工客服继续核验"))[:120],
         "intent": req.intent.value if req.intent else "unknown",
         "urgency": req.urgency.name if req.urgency else "UNKNOWN",
-        "entities": req.entities or {},
+        "entities": redact_entities(req.entities),
         "sensitive_data_required": False,
+    }
+
+
+def _recent_logistics_followups(
+    history: Optional[List[Dict[str, str]]],
+    intent: Optional[IntentCategory],
+) -> int:
+    """统计最近五条历史消息中的同类物流用户追问（时间频率代理指标）。"""
+    issue_keywords = {
+        IntentCategory.LOGISTICS_LOST: ("丢件", "丢了", "丢失", "不见", "找不到", "没收到"),
+        IntentCategory.LOGISTICS_DAMAGED: ("破损", "损坏", "错发", "少件", "发错"),
+        IntentCategory.LOGISTICS_DISPUTE: ("签收争议", "已签收", "代签", "误签", "没收到"),
+        IntentCategory.LOGISTICS_DELAY: ("延误", "停滞", "没更新", "未更新", "超时"),
+        IntentCategory.LOGISTICS_ADDRESS: ("地址", "改地址", "修改地址", "更改地址"),
+    }
+    keywords = issue_keywords.get(intent, ("物流", "快递", "运单", "配送", "签收", "丢件", "破损", "延误", "地址"))
+    return sum(
+        1
+        for item in (history or [])[-5:]
+        if str(item.get("role", "")).lower() == "user"
+        and any(keyword in str(item.get("content", "")).lower() for keyword in keywords)
+    )
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+def query_logistics(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+    """查询仓库内固定的演示运单，不访问任何真实快递平台。"""
+    tracking_no = str(args.get("tracking_no") or "").strip()
+    if not tracking_no:
+        return {"success": False, "code": "missing_tracking_no", "error": "请先提供运单号", "source": "local_mock"}
+
+    fixture_path = Path(__file__).resolve().parents[1] / "data" / "mock_logistics.json"
+    try:
+        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+        records = fixture.get("records", [])
+    except (OSError, json.JSONDecodeError, AttributeError) as ex:
+        return {
+            "success": False,
+            "code": "fixture_unavailable",
+            "error": "本地物流模拟数据暂不可用",
+            "source": "local_mock",
+        }
+    if not isinstance(records, list):
+        return {
+            "success": False,
+            "code": "fixture_invalid",
+            "error": "本地物流模拟数据格式无效",
+            "source": "local_mock",
+        }
+
+    record = next(
+        (item for item in records if str(item.get("tracking_no", "")).casefold() == tracking_no.casefold()),
+        None,
+    )
+    if record is None:
+        return {
+            "success": False,
+            "code": "not_found",
+            "error": "本地模拟数据中没有该运单，请核对运单号；这不代表真实快递状态",
+            "source": "local_mock",
+            "data_notice": fixture.get("data_notice", "本地演示数据，不代表真实快递平台信息"),
+        }
+
+    days_without_update = max(0, int(record.get("days_without_update", 0)))
+    lost_days_threshold = _positive_int_env("ECHOMIND_LOGISTICS_LOST_DAYS_THRESHOLD", 7)
+    min_followups = _positive_int_env("ECHOMIND_LOGISTICS_MIN_FOLLOWUPS", 2)
+    followups = _recent_logistics_followups(req.history, req.intent)
+    escalation_candidate = (
+        req.intent == IntentCategory.LOGISTICS_LOST
+        and days_without_update >= lost_days_threshold
+        and followups >= min_followups
+    )
+    escalation_reason = ""
+    if escalation_candidate:
+        escalation_reason = (
+            f"本地模拟记录停滞 {days_without_update} 天（阈值 {lost_days_threshold} 天）；"
+            f"最近 5 条历史消息中有 {followups} 条物流相关用户追问（阈值 {min_followups} 条）"
+        )
+
+    return {
+        "success": True,
+        "source": "local_mock",
+        "data_notice": fixture.get("data_notice", "本地演示数据，不代表真实快递平台信息"),
+        "status": record.get("status", "未知（模拟）"),
+        "last_update": record.get("last_update", ""),
+        "days_without_update": days_without_update,
+        "events": record.get("events", []),
+        "escalation_candidate": escalation_candidate,
+        "escalation_reason": escalation_reason,
     }
 
 
@@ -289,4 +420,16 @@ def escalation_tools() -> Dict[str, AgentToolSpec]:
             {"reason": {"type": "string", "description": "需要升级的原因"}},
             create_handoff_summary,
         ),
+    }
+
+
+def logistics_tools() -> Dict[str, AgentToolSpec]:
+    return {
+        "query_logistics": make_tool(
+            "query_logistics",
+            "按运单号查询固定的本地模拟物流记录；不访问真实快递平台，不执行地址修改或理赔。",
+            {"tracking_no": {"type": "string", "description": "用户提供的运单号"}},
+            query_logistics,
+            required=["tracking_no"],
+        )
     }

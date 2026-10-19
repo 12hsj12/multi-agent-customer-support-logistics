@@ -36,6 +36,9 @@ from agents.tools import (
     billing_tools,
     escalation_tools,
     general_tools,
+    logistics_tools,
+    mask_tracking_no,
+    redact_entities,
     technical_tools,
 )
 from core.intent_recognizer import IntentCategory, IntentRecognizer, UrgencyLevel
@@ -50,6 +53,7 @@ class AgentType(Enum):
     GENERAL   = "general"    # 通用客服
     TECHNICAL = "technical"  # 技术支持
     BILLING   = "billing"    # 账单/退款
+    LOGISTICS = "logistics"  # 物流纠纷
     ESCALATION = "escalation" # 人工升级与交接
 
 
@@ -330,19 +334,26 @@ class BaseAgent:
                     tool_latency_ms = (time.monotonic() - tool_t0) * 1000
                     if not error_text and isinstance(result, dict):
                         error_text = str(result.get("error", "") or "")
+                    trace_input = dict(args)
+                    if name == "query_logistics" and "tracking_no" in trace_input:
+                        trace_input["tracking_no"] = mask_tracking_no(trace_input["tracking_no"])
+                    trace = {
+                        "agent_type": self.agent_type.value,
+                        "tool_name": name,
+                        "tool_use_id": tool_use_id,
+                        "input": trace_input,
+                        "success": call_success,
+                        "result_success": result_success,
+                        "latency_ms": round(tool_latency_ms, 1),
+                        "cached": bool(result.get("cached")) if isinstance(result, dict) else False,
+                        "reranked": bool(result.get("reranked")) if isinstance(result, dict) else False,
+                        "error": error_text,
+                    }
+                    if isinstance(result, dict) and "escalation_candidate" in result:
+                        trace["escalation_candidate"] = bool(result.get("escalation_candidate"))
+                        trace["escalation_reason"] = str(result.get("escalation_reason", ""))
                     tool_traces.append(
-                        {
-                            "agent_type": self.agent_type.value,
-                            "tool_name": name,
-                            "tool_use_id": tool_use_id,
-                            "input": dict(args),
-                            "success": call_success,
-                            "result_success": result_success,
-                            "latency_ms": round(tool_latency_ms, 1),
-                            "cached": bool(result.get("cached")) if isinstance(result, dict) else False,
-                            "reranked": bool(result.get("reranked")) if isinstance(result, dict) else False,
-                            "error": error_text,
-                        }
+                        trace
                     )
                     tool_results.append({
                         "type": "tool_result",
@@ -533,6 +544,66 @@ class BillingAgent(BaseAgent):
         return tools
 
 
+class LogisticsAgent(BaseAgent):
+    agent_type = AgentType.LOGISTICS
+    profile = AgentProfile(
+        role="物流纠纷受理与证据整理",
+        mission="处理疑似丢件、破损错发、签收争议、配送延误和地址修改咨询；只使用明确标记的本地模拟轨迹。",
+        workflow=("识别物流纠纷类型", "确认运单号", "查询本地模拟记录或收集证据", "说明处理边界", "按确定性规则判断是否交接"),
+        input_contract=("用户描述", "运单号", "近期对话历史", "知识库上下文"),
+        output_contract=("已知事实及来源", "需要补充的信息", "安全的下一步", "模拟数据与真实状态的区别"),
+        handoff_conditions=("疑似丢件模拟记录达到配置停滞天数且重复追问达到配置阈值", "需要真实后台核验或用户明确要求人工"),
+        tool_scope=("search_knowledge_base", "query_logistics"),
+        temperature=0.1,
+        max_tokens=1000,
+    )
+    system_prompt = (
+        "你是 EchoMind 物流纠纷专员。严格区分用户陈述、知识库说明和 local_mock 查询结果。"
+        "不得声称连接真实快递平台，不得认定实际丢件或签收事实，不得承诺赔偿或已修改地址。"
+        "缺少运单号时先向用户追问；模拟记录未找到时请用户核对，不要推测真实轨迹。"
+    )
+
+    async def handle(self, req: Request) -> AgentResponse:
+        if not (req.entities or {}).get("tracking_no"):
+            t0 = time.monotonic()
+            self.stats.total += 1
+            self.stats.success += 1
+            ms = (time.monotonic() - t0) * 1000
+            self.stats.total_ms += ms
+            return AgentResponse(
+                agent_type=self.agent_type,
+                content="我可以先帮您核对物流模拟记录，请提供运单号。请勿发送身份证号、完整手机号或支付凭证。",
+                success=True,
+                latency_ms=ms,
+            )
+
+        response = await super().handle(req)
+        # 物流升级只依赖工具返回的确定性证据，不使用回复文案中的“人工”等关键词。
+        response.escalate = any(
+            trace.get("tool_name") == "query_logistics" and trace.get("escalation_candidate") is True
+            for trace in response.tool_traces
+        )
+        return response
+
+    def _needs_escalation(self, content: str) -> bool:
+        return False
+
+    def _build_role_packet(self, req: Request) -> str:
+        packet = json.loads(super()._build_role_packet(req))
+        packet["logistics_fields"] = {
+            "tracking_no_available": bool((req.entities or {}).get("tracking_no")),
+            "missing_fields": [] if (req.entities or {}).get("tracking_no") else ["运单号"],
+            "address_change_supported": False,
+            "risk_boundary": "不得把模拟轨迹说成真实快递信息；不得承诺丢件认定、赔付或完成地址修改",
+        }
+        return json.dumps(packet, ensure_ascii=False)
+
+    def get_tools(self) -> Dict[str, AgentToolSpec]:
+        tools = super().get_tools()
+        tools.update(logistics_tools())
+        return tools
+
+
 class EscalationAgent(BaseAgent):
     """人工升级节点。
 
@@ -564,7 +635,7 @@ class EscalationAgent(BaseAgent):
         self.stats.total += 1
         intent = req.intent.value if req.intent else "unknown"
         urgency = req.urgency.name if req.urgency else "UNKNOWN"
-        entities = json.dumps(req.entities or {}, ensure_ascii=False)
+        entities = json.dumps(redact_entities(req.entities), ensure_ascii=False)
         content = (
             "我已将这个问题标记为人工升级处理。\n\n"
             f"升级原因：意图={intent}，紧急度={urgency}\n"
@@ -659,6 +730,11 @@ class AgentOrchestrator:
         IntentCategory.PAYMENT_ISSUE: AgentType.BILLING,
         IntentCategory.ACCOUNT:    AgentType.BILLING,
         IntentCategory.ACCOUNT_SECURITY: AgentType.BILLING,
+        IntentCategory.LOGISTICS_LOST: AgentType.LOGISTICS,
+        IntentCategory.LOGISTICS_DAMAGED: AgentType.LOGISTICS,
+        IntentCategory.LOGISTICS_DISPUTE: AgentType.LOGISTICS,
+        IntentCategory.LOGISTICS_DELAY: AgentType.LOGISTICS,
+        IntentCategory.LOGISTICS_ADDRESS: AgentType.LOGISTICS,
         IntentCategory.ESCALATION: AgentType.ESCALATION,
         IntentCategory.HUMAN_HANDOFF: AgentType.ESCALATION,
         # 其余意图 → GENERAL（默认）
@@ -692,6 +768,7 @@ class AgentOrchestrator:
             AgentType.GENERAL: [self._make_agent(GeneralAgent, client, model, skill_manager)],
             AgentType.TECHNICAL: [self._make_agent(TechnicalAgent, client, model, skill_manager)],
             AgentType.BILLING: [self._make_agent(BillingAgent, client, model, skill_manager)],
+            AgentType.LOGISTICS: [self._make_agent(LogisticsAgent, client, model, skill_manager)],
             AgentType.ESCALATION: [self._make_agent(EscalationAgent, client, model, skill_manager)],
         }
         self.set_shared_tools(build_shared_rag_tools(rag_tool_manager))
@@ -802,6 +879,24 @@ class AgentOrchestrator:
 
         # 2. 执行主 Agent（含降级）
         response = await self._execute(req, decision.primary_agent)
+        executed_agent_types = [response.agent_type]
+        supporting_agents: List[AgentType] = []
+        routing_reason = decision.reason
+        if response.agent_type == AgentType.LOGISTICS and response.escalate:
+            handoff = await self._execute(replace(req, urgency=UrgencyLevel.CRITICAL), AgentType.ESCALATION)
+            response = AgentResponse(
+                agent_type=AgentType.ESCALATION,
+                content=f"{response.content}\n\n{handoff.content}",
+                success=response.success and handoff.success,
+                confidence=min(response.confidence, handoff.confidence),
+                latency_ms=response.latency_ms + handoff.latency_ms,
+                escalate=True,
+                tools_used=list(dict.fromkeys(response.tools_used + handoff.tools_used)),
+                tool_traces=response.tool_traces + handoff.tool_traces,
+            )
+            executed_agent_types = [AgentType.LOGISTICS, AgentType.ESCALATION]
+            supporting_agents = [AgentType.ESCALATION]
+            routing_reason += "; local_mock evidence met candidate rule; handed off to EscalationAgent"
 
         # 4. 升级检查
         escalated = False
@@ -820,12 +915,12 @@ class AgentOrchestrator:
             intent=req.intent,
             escalated=escalated,
             latency_ms=(time.monotonic() - t0) * 1000,
-            agent_types=[response.agent_type],
+            agent_types=executed_agent_types,
             primary_agent=decision.primary_agent,
-            supporting_agents=[],
+            supporting_agents=supporting_agents,
             tools_used=list(response.tools_used),
             tool_traces=list(response.tool_traces),
-            routing_reason=decision.reason,
+            routing_reason=routing_reason,
             routing_confidence=decision.confidence,
         )
         self._record_tool_trace(result)
@@ -842,8 +937,16 @@ class AgentOrchestrator:
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
         valid_responses = [r for r in responses if isinstance(r, AgentResponse)]
+        logistics_handoff = any(
+            response.agent_type == AgentType.LOGISTICS and response.escalate
+            for response in valid_responses
+        )
+        if logistics_handoff:
+            valid_responses.append(await self._execute(replace(req, urgency=UrgencyLevel.CRITICAL), AgentType.ESCALATION))
         combined = await self._composer.compose(req, valid_responses)
-        escalated = any(isinstance(r, AgentResponse) and r.escalate for r in responses)
+        escalated = logistics_handoff or any(
+            isinstance(r, AgentResponse) and r.escalate for r in responses
+        )
         tools_used = list(dict.fromkeys(
             tool_name
             for response in valid_responses
@@ -854,22 +957,26 @@ class AgentOrchestrator:
             for response in valid_responses
             for trace in response.tool_traces
         ]
+        executed_agent_types = [r.agent_type for r in valid_responses if r.success] or agent_types
+        supporting_agents = list(decision.supporting_agents)
+        routing_reason = decision.reason
+        if logistics_handoff:
+            if AgentType.ESCALATION not in supporting_agents:
+                supporting_agents.append(AgentType.ESCALATION)
+            routing_reason += "; local_mock evidence met candidate rule; handed off to EscalationAgent"
         result = OrchestratorResult(
             request_id=req.request_id,
             response=combined,
-            agent_type=decision.primary_agent,
+            agent_type=AgentType.ESCALATION if logistics_handoff else decision.primary_agent,
             intent=req.intent,
             escalated=escalated,
             latency_ms=(time.monotonic() - t0) * 1000,
-            agent_types=[
-                r.agent_type for r in responses
-                if isinstance(r, AgentResponse) and r.success
-            ] or agent_types,
+            agent_types=executed_agent_types,
             primary_agent=decision.primary_agent,
-            supporting_agents=decision.supporting_agents,
+            supporting_agents=supporting_agents,
             tools_used=tools_used,
             tool_traces=tool_traces,
-            routing_reason=decision.reason,
+            routing_reason=routing_reason,
             routing_confidence=decision.confidence,
         )
         self._record_tool_trace(result)
@@ -919,7 +1026,7 @@ class AgentOrchestrator:
         scores = self._domain_scores(req)
         degraded_agents = {
             agent_type
-            for agent_type in (AgentType.TECHNICAL, AgentType.BILLING)
+            for agent_type in (AgentType.TECHNICAL, AgentType.BILLING, AgentType.LOGISTICS)
             if scores.get(agent_type, 0.0) > 0 and self._monitor_degraded(agent_type)
         }
         available_scores = {
@@ -972,12 +1079,12 @@ class AgentOrchestrator:
             AgentType.GENERAL: 0.1,
             AgentType.TECHNICAL: 0.0,
             AgentType.BILLING: 0.0,
+            AgentType.LOGISTICS: 0.0,
         }
 
         if req.intent in (
             IntentCategory.QUERY,
             IntentCategory.ORDER_STATUS,
-            IntentCategory.LOGISTICS,
             IntentCategory.REQUEST,
             IntentCategory.COMPLAINT,
             IntentCategory.GREETING,
@@ -1003,17 +1110,37 @@ class AgentOrchestrator:
         ):
             scores[AgentType.BILLING] += 0.75
 
+        logistics_intents = (
+            IntentCategory.LOGISTICS_LOST,
+            IntentCategory.LOGISTICS_DAMAGED,
+            IntentCategory.LOGISTICS_DISPUTE,
+            IntentCategory.LOGISTICS_DELAY,
+            IntentCategory.LOGISTICS_ADDRESS,
+        )
+        if req.intent in logistics_intents:
+            scores[AgentType.LOGISTICS] += 0.85
+
         technical_kws = ["崩溃", "报错", "error", "crash", "无法登录", "登录失败", "500", "401", "验证码"]
         billing_kws = ["退款", "退货", "扣款", "发票", "账单", "支付", "订阅", "refund", "invoice", "多扣"]
         general_kws = ["订单", "物流", "快递", "配送", "会员", "积分", "咨询", "帮助"]
+        logistics_kws = [
+            "丢件", "丢了", "包裹不见", "找不到包裹", "破损", "损坏", "错发", "少件",
+            "签收争议", "已签收但没收到", "被代签", "误签收", "延误", "物流停滞",
+            "一直不更新", "超时未到", "修改地址", "更改地址", "地址填错", "换收货地址",
+        ]
 
         technical_hits = sum(1 for kw in technical_kws if kw in msg)
         billing_hits = sum(1 for kw in billing_kws if kw in msg)
         general_hits = sum(1 for kw in general_kws if kw in msg)
+        logistics_hits = sum(1 for kw in logistics_kws if kw in msg)
+
+        if req.intent == IntentCategory.LOGISTICS and logistics_hits == 0:
+            scores[AgentType.GENERAL] += 0.55
 
         scores[AgentType.TECHNICAL] += min(0.45, technical_hits * 0.18)
         scores[AgentType.BILLING] += min(0.45, billing_hits * 0.18)
         scores[AgentType.GENERAL] += min(0.35, general_hits * 0.12)
+        scores[AgentType.LOGISTICS] += min(0.75, logistics_hits * 0.4)
 
         entities = req.entities or {}
         if entities.get("error_code"):
@@ -1055,6 +1182,11 @@ class AgentOrchestrator:
 
         technical_kws = ["崩溃", "报错", "error", "crash", "无法登录", "登录失败", "500", "401"]
         billing_kws = ["退款", "扣款", "发票", "账单", "支付", "订阅", "refund", "invoice"]
+        logistics_kws = [
+            "丢件", "丢了", "包裹不见", "找不到包裹", "破损", "损坏", "错发", "少件",
+            "签收争议", "已签收但没收到", "被代签", "误签收", "延误", "物流停滞",
+            "一直不更新", "超时未到", "修改地址", "更改地址", "地址填错", "换收货地址",
+        ]
 
         if req.intent in (
             IntentCategory.TECHNICAL,
@@ -1071,6 +1203,14 @@ class AgentOrchestrator:
             IntentCategory.PAYMENT_ISSUE,
         ) or any(kw in msg for kw in billing_kws):
             targets.append(AgentType.BILLING)
+        if req.intent in (
+            IntentCategory.LOGISTICS_LOST,
+            IntentCategory.LOGISTICS_DAMAGED,
+            IntentCategory.LOGISTICS_DISPUTE,
+            IntentCategory.LOGISTICS_DELAY,
+            IntentCategory.LOGISTICS_ADDRESS,
+        ) or any(kw in msg for kw in logistics_kws):
+            targets.append(AgentType.LOGISTICS)
 
         # 保持顺序去重，并只返回当前有实例的 Agent 类型。
         deduped = list(dict.fromkeys(targets))

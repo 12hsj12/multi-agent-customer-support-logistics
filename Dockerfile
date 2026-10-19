@@ -17,7 +17,7 @@ FROM base AS dependencies
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -r requirements.txt
 
 # 预下载 ChromaDB 内置的 ONNX embedding 模型（~79MB），避免运行时下载超时
 RUN python - <<'PY'

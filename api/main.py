@@ -230,6 +230,9 @@ class ChatResponse(BaseModel):
     entities: Dict[str, List[str]] = Field(default_factory=dict)
     intent_confidence: float = 0.0
     intent_source_scores: Dict[str, float] = Field(default_factory=dict)
+    intent_decision_source: str = "baseline"
+    intent_decision_status: str = "disabled"
+    intent_decision_latency_ms: float = 0.0
 
 
 class ToolTraceResponse(BaseModel):
@@ -337,6 +340,9 @@ async def chat(req: ChatRequest):
         entities=intent_result.entities,
         intent_confidence=round(intent_result.confidence, 4),
         intent_source_scores=intent_result.source_scores,
+        intent_decision_source=intent_result.decision_source,
+        intent_decision_status=intent_result.decision_status,
+        intent_decision_latency_ms=round(intent_result.decision_latency_ms, 1),
     )
 
 

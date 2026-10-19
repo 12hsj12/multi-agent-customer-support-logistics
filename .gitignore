@@ -11,7 +11,20 @@ venv/
 .env
 
 # 数据目录
-data/
+data/*
+!data/
+!data/mock_logistics.json
+!data/demo_docs/
+data/demo_docs/*
+!data/demo_docs/logistics_demo_policy.md
+!data/eval/
+data/eval/*
+!data/eval/g4_intents_v1.json
+!data/eval/g4_results/
+data/eval/g4_results/*
+!data/eval/g4_results/g0_baseline.json
+!data/eval/g4_results/g2_logistics_final.json
+!data/eval/g4_results/g3_local.json
 logs/
 
 # IDE
@@ -34,3 +47,17 @@ build-image*.sh
 *~
 *.bak
 docker-compose(1).yml
+
+# 本地面试、简历与展示材料，不纳入 EchoMind 项目仓库
+/wiki/简历包装.md
+/wiki/带数据指标的加强版简历模板.md
+/wiki/NexusOps企业智能运营协同中枢.md
+/wiki/assets/posters/echomind-update-poster.svg
+/wiki/带数据指标的简历模板.md
+/wiki/EchoMind面试面经2（人员已满，不可申请）.pdf
+/wiki/技术亮点.md
+/wiki/重点代码.md
+/wiki/EchoMind定位与技术亮点.md
+/wiki/EchoMind学习文档.md
+/wiki/项目更新推文.md
+/wiki/EchoMind 场景扩展指南.md

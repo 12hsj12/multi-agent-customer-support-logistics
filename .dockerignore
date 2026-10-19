@@ -1,5 +1,8 @@
 .git
 .gitignore
+.env
+.env.*
+!.env.example
 .idea
 .venv
 __pycache__
@@ -23,3 +26,4 @@ data/.DS_Store
 
 config/grafana/
 config/nginx/ssl/
+models/*.gguf

@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -21,6 +22,12 @@ from typing import Any, Dict, List, Optional
 
 from anthropic import AsyncAnthropic
 
+from core.decision_provider import (
+    DecisionProvider,
+    DecisionResult,
+    DecisionStatus,
+    create_local_decision_provider,
+)
 from core.llm_utils import extract_text_content
 
 logger = logging.getLogger(__name__)
@@ -38,6 +45,11 @@ class IntentCategory(Enum):
     FEEDBACK   = "feedback"    # 正面反馈
     ORDER_STATUS = "order_status"        # 订单状态
     LOGISTICS = "logistics"              # 物流配送
+    LOGISTICS_LOST = "logistics_lost"    # 疑似丢件
+    LOGISTICS_DAMAGED = "logistics_damaged"  # 破损/错发
+    LOGISTICS_DISPUTE = "logistics_dispute"  # 签收争议
+    LOGISTICS_DELAY = "logistics_delay"  # 物流延误
+    LOGISTICS_ADDRESS = "logistics_address"  # 修改收货地址
     REFUND = "refund"                    # 退款/退货
     INVOICE = "invoice"                  # 发票
     PAYMENT_ISSUE = "payment_issue"      # 支付/扣款异常
@@ -65,6 +77,9 @@ class IntentResult:
     reasoning:  str
     latency_ms: float
     source_scores: Dict[str, float] = field(default_factory=dict)
+    decision_source: str = "baseline"
+    decision_status: str = "disabled"
+    decision_latency_ms: float = 0.0
 
 
 # ── Few-shot 模板（同时用于 LLM 示例和 Embedding 匹配）────────────────────────
@@ -80,6 +95,11 @@ _TEMPLATES: Dict[IntentCategory, List[str]] = {
     IntentCategory.FEEDBACK:   ["服务很棒！", "非常满意", "给个好评"],
     IntentCategory.ORDER_STATUS: ["我的订单现在是什么状态？", "订单有没有发货？", "订单处理到哪一步了？"],
     IntentCategory.LOGISTICS: ["快递什么时候到？", "物流一直不更新", "配送要多久？"],
+    IntentCategory.LOGISTICS_LOST: ["快递疑似丢件了", "包裹一直没找到", "物流停滞多日怀疑丢失"],
+    IntentCategory.LOGISTICS_DAMAGED: ["收到的包裹破损了", "快递发错商品了", "收到的商品有破损"],
+    IntentCategory.LOGISTICS_DISPUTE: ["物流显示已签收但我没收到", "包裹被别人代签了", "我对签收记录有争议"],
+    IntentCategory.LOGISTICS_DELAY: ["物流延误还没送到", "配送超过预计时间", "物流信息多日没有更新"],
+    IntentCategory.LOGISTICS_ADDRESS: ["我需要修改收货地址", "地址填错了怎么改", "请帮我更改配送地址"],
     IntentCategory.REFUND: ["我要申请退款", "退货退款怎么处理？", "退款多久到账？"],
     IntentCategory.INVOICE: ["帮我开发票", "发票抬头怎么改？", "电子发票在哪里？"],
     IntentCategory.PAYMENT_ISSUE: ["为什么重复扣款？", "支付失败怎么办？", "这个月多扣了钱"],
@@ -92,6 +112,11 @@ _TEMPLATES: Dict[IntentCategory, List[str]] = {
 _SPECIFIC_INTENTS = {
     IntentCategory.ORDER_STATUS,
     IntentCategory.LOGISTICS,
+    IntentCategory.LOGISTICS_LOST,
+    IntentCategory.LOGISTICS_DAMAGED,
+    IntentCategory.LOGISTICS_DISPUTE,
+    IntentCategory.LOGISTICS_DELAY,
+    IntentCategory.LOGISTICS_ADDRESS,
     IntentCategory.REFUND,
     IntentCategory.INVOICE,
     IntentCategory.PAYMENT_ISSUE,
@@ -103,15 +128,23 @@ _SPECIFIC_INTENTS = {
 
 _GENERIC_INTENTS = {
     IntentCategory.QUERY,
+    IntentCategory.COMPLAINT,
+    IntentCategory.REQUEST,
     IntentCategory.BILLING,
     IntentCategory.TECHNICAL,
     IntentCategory.ACCOUNT,
     IntentCategory.ESCALATION,
+    IntentCategory.LOGISTICS,
 }
 
 _INTENT_GROUPS: Dict[IntentCategory, IntentCategory] = {
     IntentCategory.ORDER_STATUS: IntentCategory.QUERY,
     IntentCategory.LOGISTICS: IntentCategory.QUERY,
+    IntentCategory.LOGISTICS_LOST: IntentCategory.QUERY,
+    IntentCategory.LOGISTICS_DAMAGED: IntentCategory.QUERY,
+    IntentCategory.LOGISTICS_DISPUTE: IntentCategory.QUERY,
+    IntentCategory.LOGISTICS_DELAY: IntentCategory.QUERY,
+    IntentCategory.LOGISTICS_ADDRESS: IntentCategory.QUERY,
     IntentCategory.REFUND: IntentCategory.BILLING,
     IntentCategory.INVOICE: IntentCategory.BILLING,
     IntentCategory.PAYMENT_ISSUE: IntentCategory.BILLING,
@@ -151,6 +184,8 @@ class IntentRecognizer:
         base_url: Optional[str] = None,
         model: str = "claude-3-5-sonnet-20241022",
         confidence_threshold: float = 0.5,
+        decision_provider: Optional[DecisionProvider] = None,
+        decision_backend: Optional[str] = None,
     ):
         kwargs: Dict[str, Any] = {"api_key": api_key}
         if base_url:
@@ -161,6 +196,24 @@ class IntentRecognizer:
         # 本地字符 n-gram 向量始终可用；如果未来客户端暴露 embeddings 资源，
         # _embed_text 会优先尝试远端向量，否则自动回退本地向量。
         self._embedding_enabled = True
+
+        backend = (decision_backend or os.getenv("ECHOMIND_DECISION_BACKEND", "baseline")).strip().lower()
+        if backend not in {"baseline", "local"}:
+            logger.warning("未知意图决策后端，回退 baseline: %s", backend)
+            backend = "baseline"
+        self._decision_backend = backend
+        self._decision_provider = decision_provider
+        if self._decision_backend == "local" and self._decision_provider is None:
+            self._decision_provider = create_local_decision_provider()
+        legacy_trigger_confidence = self._read_bounded_float_env(
+            "ECHOMIND_OPENJEV_TRIGGER_CONFIDENCE", 0.65
+        )
+        self._local_trigger_confidence = self._read_bounded_float_env(
+            "ECHOMIND_DECISION_TRIGGER_CONFIDENCE", legacy_trigger_confidence
+        )
+        self._llm_priority_confidence = self._read_bounded_float_env(
+            "ECHOMIND_LLM_PRIORITY_CONFIDENCE", 0.85
+        )
 
         self._tpl_embeddings: Dict[IntentCategory, List[List[float]]] = {}
         self._cache: Dict[str, IntentResult] = {}
@@ -199,6 +252,64 @@ class IntentRecognizer:
             emb = {"intent": IntentCategory.OTHER, "confidence": 0.0}
 
         intent, confidence, source_scores = self._vote(llm, emb, pat)
+        decision_source = "baseline"
+        decision_status = "disabled" if getattr(self, "_decision_backend", "baseline") != "local" else "skipped"
+        decision_latency_ms = 0.0
+        should_decide, skip_reason = self._should_call_local(intent, confidence, llm, emb, pat)
+        provider = getattr(self, "_decision_provider", None)
+        if should_decide:
+            if provider is None:
+                decision_status = "fallback"
+                logger.warning("意图决策回退 baseline: local provider 未配置")
+            else:
+                decision_started = time.monotonic()
+                try:
+                    decision = await provider.decide(
+                        message=message,
+                        candidates=self._decision_candidates(),
+                        history=history,
+                    )
+                except Exception:
+                    decision = None
+                    decision_latency_ms = (time.monotonic() - decision_started) * 1000
+                    decision_status = "fallback"
+                    logger.warning("意图决策回退 baseline: provider 调用异常")
+                if isinstance(decision, DecisionResult):
+                    decision_latency_ms = decision.latency_ms
+                if isinstance(decision, DecisionResult) and decision.status is DecisionStatus.DECIDED and decision.label:
+                    try:
+                        intent = IntentCategory(decision.label)
+                    except ValueError:
+                        decision_status = "fallback"
+                        logger.warning("意图决策回退 baseline: provider 返回未知候选")
+                    else:
+                        decision_source = decision.source
+                        decision_status = "applied"
+                        confidence = decision.confidence if decision.confidence is not None else 0.0
+                        if decision.confidence is not None:
+                            source_scores = dict(source_scores)
+                            source_scores[decision.source] = decision.confidence
+                elif isinstance(decision, DecisionResult):
+                    decision_status = "fallback"
+                    logger.info(
+                        "意图决策回退 baseline provider=%s status=%s latency_ms=%.1f error=%s",
+                        decision.source,
+                        getattr(decision.status, "value", str(decision.status)),
+                        decision.latency_ms,
+                        decision.error_code or "none",
+                    )
+                elif decision is not None:
+                    decision_status = "fallback"
+                    logger.warning("意图决策回退 baseline: provider 返回格式无效")
+                if decision_status == "applied":
+                    logger.info(
+                        "意图决策完成 provider=%s status=applied latency_ms=%.1f",
+                        decision_source,
+                        decision_latency_ms,
+                    )
+        elif getattr(self, "_decision_backend", "baseline") == "local":
+            logger.debug("意图决策跳过 reason=%s", skip_reason)
+
         entities = self._extract_entities(message)
         urgency  = self._urgency(message, intent)
 
@@ -211,6 +322,9 @@ class IntentRecognizer:
             reasoning=llm.get("reasoning", ""),
             latency_ms=(time.monotonic() - t0) * 1000,
             source_scores=source_scores,
+            decision_source=decision_source,
+            decision_status=decision_status,
+            decision_latency_ms=decision_latency_ms,
         )
 
         # LRU 缓存
@@ -219,6 +333,69 @@ class IntentRecognizer:
                 del self._cache[k]
         self._cache[key] = result
         return result
+
+    def _should_call_local(
+        self,
+        baseline_intent: IntentCategory,
+        baseline_confidence: float,
+        llm: Dict[str, Any],
+        emb: Dict[str, Any],
+        pat: Dict[str, Any],
+    ) -> tuple[bool, str]:
+        """Only arbitrate uncertain baseline results; a confident LLM wins."""
+        if getattr(self, "_decision_backend", "baseline") != "local":
+            return False, "backend_disabled"
+
+        llm_confidence = float(llm.get("confidence", 0.0) or 0.0)
+        if not llm.get("failed") and llm_confidence >= getattr(self, "_llm_priority_confidence", 0.85):
+            return False, "high_confidence_llm"
+
+        predicted = set()
+        for result in (llm, emb, pat):
+            if result.get("failed") or float(result.get("confidence", 0.0) or 0.0) <= 0:
+                continue
+            candidate = result.get("intent", IntentCategory.OTHER)
+            if isinstance(candidate, str):
+                try:
+                    candidate = IntentCategory(candidate)
+                except ValueError:
+                    continue
+            if isinstance(candidate, IntentCategory):
+                predicted.add(candidate)
+        conflict = len(predicted) > 1
+        low_confidence = baseline_confidence < getattr(self, "_local_trigger_confidence", 0.65)
+        if baseline_intent is IntentCategory.OTHER:
+            return True, "baseline_other"
+        if low_confidence:
+            return True, "low_confidence"
+        if conflict:
+            return True, "source_conflict"
+        return False, "baseline_agreement"
+
+    @staticmethod
+    def _decision_candidates() -> Dict[str, str]:
+        """Reuse the intent examples as concise Chinese candidate descriptions."""
+        candidates: Dict[str, str] = {}
+        for category in IntentCategory:
+            examples = _TEMPLATES.get(category, [])[:3]
+            candidates[category.value] = "；".join(examples) if examples else "其它或无法归入已列出的客服意图"
+        return candidates
+
+    @staticmethod
+    def _read_float_env(name: str, default: float) -> float:
+        try:
+            return float(os.getenv(name, str(default)))
+        except (TypeError, ValueError):
+            logger.warning("环境变量 %s 不是有效数字，使用默认值", name)
+            return default
+
+    @classmethod
+    def _read_bounded_float_env(cls, name: str, default: float) -> float:
+        value = cls._read_float_env(name, default)
+        if not 0.0 <= value <= 1.0:
+            logger.warning("环境变量 %s 超出 [0, 1]，使用默认值", name)
+            return default
+        return value
 
     def learn(self, message: str, correct: IntentCategory) -> None:
         """在线学习：将纠正样本加入模板，清除对应 Embedding 缓存。"""
@@ -307,6 +484,11 @@ class IntentRecognizer:
         specific_patterns = {
             IntentCategory.HUMAN_HANDOFF: ["转人工", "人工客服", "找人工"],
             IntentCategory.ORDER_STATUS: ["订单状态", "发货了吗", "处理到哪", "order status"],
+            IntentCategory.LOGISTICS_LOST: ["疑似丢件", "丢件", "丢了", "包裹不见", "找不到包裹", "疑似丢失"],
+            IntentCategory.LOGISTICS_DAMAGED: ["破损", "损坏", "错发", "少件", "发错"],
+            IntentCategory.LOGISTICS_DISPUTE: ["签收争议", "已签收但没收到", "显示签收但没收到", "被代签", "误签收", "签收凭证"],
+            IntentCategory.LOGISTICS_DELAY: ["物流延误", "配送延误", "物流停滞", "一直不更新", "超时未到", "超过预计到达"],
+            IntentCategory.LOGISTICS_ADDRESS: ["修改地址", "更改地址", "改收货地址", "地址填错", "换收货地址"],
             IntentCategory.LOGISTICS: ["物流", "快递", "配送", "运单", "delivery", "shipping"],
             IntentCategory.REFUND: ["退款", "退货", "refund", "return"],
             IntentCategory.INVOICE: ["发票", "抬头", "税号", "invoice"],
@@ -377,6 +559,7 @@ class IntentRecognizer:
         message = self._clean_text(message)
         return {
             "order_id": self._unique(re.findall(r"(?:订单号?|order(?:_id)?|#)\s*[:：#]?\s*([A-Za-z0-9_-]{4,32})", message, re.I)),
+            "tracking_no": self._unique(re.findall(r"(?:运单号|快递单号|物流单号|tracking(?:\s*(?:no|number))?|waybill(?:\s*(?:no|number))?)\s*(?:(?:[:：#]\s*)|(?:是|为)\s*)?([A-Za-z0-9_-]{8,32})\b", message, re.I)),
             "product": [],
             "date": self._unique(re.findall(r"(今天|明天|昨天|本周|这周|下周|\d{4}[-/.年]\d{1,2}[-/.月]\d{1,2}日?)", message)),
             "amount": self._unique(re.findall(r"((?:¥|￥)\s*\d+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?\s*(?:元|块|rmb|cny|usd|美元))", message, re.I)),

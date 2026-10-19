@@ -8,15 +8,15 @@ services:
     image: redis:7-alpine
     container_name: echomind-redis
     ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-echomind123}
+      - "127.0.0.1:6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     volumes:
       - redis-data:/data
     restart: unless-stopped
     networks:
       - echomind-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-echomind123}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,7 +26,7 @@ services:
     image: chromadb/chroma:0.5.23
     container_name: echomind-chromadb
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     environment:
       - IS_PERSISTENT=TRUE
       - PERSIST_DIRECTORY=/chroma/chroma
@@ -48,7 +48,7 @@ services:
     image: prom/prometheus:latest
     container_name: echomind-prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -80,13 +80,18 @@ services:
       - .env
     environment:
       # 容器内固定值，覆盖 .env 中的本地路径
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-echomind123}@redis:6379/0
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
       - CHROMA_PERSIST_DIRECTORY=/app/data/chroma
       - EVAL_BASELINE_PATH=/app/data/eval/baseline.json
       - ECHOMIND_SKILLS_DIR=/app/skills
+      - ECHOMIND_LOCAL_DECISION_PROVIDER=${ECHOMIND_LOCAL_DECISION_PROVIDER:-mapika_gguf}
+      - ECHOMIND_DECIDER_MODEL_PATH=/app/models/decider-2b-v11-Q4_K_M.gguf
+      - ECHOMIND_DECIDER_N_CTX=${ECHOMIND_DECIDER_N_CTX:-2048}
+      - ECHOMIND_DECIDER_N_THREADS=${ECHOMIND_DECIDER_N_THREADS:-6}
     volumes:
       - ./data/chroma:/app/data/chroma
       - ./data/eval:/app/data/eval
+      - ./models:/app/models:ro
       - ./skills:/app/skills
       - ./logs:/app/logs
     depends_on:
@@ -98,7 +103,7 @@ services:
     networks:
       - echomind-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()"]
       interval: 30s
       timeout: 10s
       retries: 3

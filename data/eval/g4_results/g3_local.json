@@ -1,0 +1,1385 @@
+{
+  "schema_version": "g4-benchmark-report-v1",
+  "dataset_id": "echomind-g4-intents-v1",
+  "dataset_sha256": "e7b9c286a53dadd7df637a6aa91d67d3288aeb33dc796cb156a66111cbb30843",
+  "variant": "local",
+  "source_revision": "working-tree-G3",
+  "timestamp_utc": "2026-10-17T15:20:30.055772+00:00",
+  "configuration": {
+    "llm_model": "deepseek-flash",
+    "decision_backend": "direct_decider_provider",
+    "local_model": "Mapika/decider-2b-GGUF:decider-2b-v11-Q4_K_M.gguf",
+    "decider_ai_version": "1.5.0",
+    "llama_cpp_python_version": "0.3.35",
+    "torch_version": "2.9.1+cpu (import dependency only; no PyTorch model weights loaded)",
+    "local_provider_execution": "evaluation-only in-process official GGUFDecider.decide; G3 HTTP adapter is not exercised",
+    "sampling_note": "LLM temperature is fixed in source at 0.1; provider has no seed parameter; dataset and request order are fixed",
+    "api_key_present": true
+  },
+  "source_hashes": {
+    "core/intent_recognizer.py": "6b27bf6f1b71109356b4ff907dfb13066edf48199ceb193a69455ac16f051570",
+    "agents/agent_orchestrator.py": "9e0a84755b7b6553aacce7009f30724b9a593c11c46c8dc1968aaf16fc0f0d3b",
+    "agents/tools.py": "1a1cb5d9921a48285cdf008a8cd78aa141560fe7e730c9f16a96abbc447244fc"
+  },
+  "sample_distribution": {
+    "account": 1,
+    "complaint": 2,
+    "greeting": 2,
+    "human_handoff": 2,
+    "invoice": 2,
+    "logistics": 18,
+    "other": 2,
+    "payment_issue": 2,
+    "refund": 2,
+    "request": 1,
+    "technical_login": 2
+  },
+  "metrics": {
+    "common_old_label_space": {
+      "total": 36,
+      "correct": 33,
+      "accuracy": 0.9167,
+      "macro_f1": 0.8788,
+      "macro_f1_label_scope": "fixed labels present in this variant's gold rows",
+      "per_class": {
+        "account": {
+          "support": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "complaint": {
+          "support": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "greeting": {
+          "support": 2,
+          "precision": 1.0,
+          "recall": 0.5,
+          "f1": 0.6667
+        },
+        "human_handoff": {
+          "support": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "invoice": {
+          "support": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "logistics": {
+          "support": 18,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "other": {
+          "support": 2,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "payment_issue": {
+          "support": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "refund": {
+          "support": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "request": {
+          "support": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "technical_login": {
+          "support": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      }
+    },
+    "fine_logistics_label_space": {
+      "supported_by_variant": true,
+      "scope": "five new logistics labels only",
+      "total": 15,
+      "correct": 14,
+      "accuracy": 0.9333,
+      "macro_f1": 0.9314,
+      "per_class": {
+        "logistics_address": {
+          "support": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "logistics_damaged": {
+          "support": 3,
+          "precision": 1.0,
+          "recall": 0.6667,
+          "f1": 0.8
+        },
+        "logistics_delay": {
+          "support": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "logistics_dispute": {
+          "support": 3,
+          "precision": 0.75,
+          "recall": 1.0,
+          "f1": 0.8571
+        },
+        "logistics_lost": {
+          "support": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "macro_f1_label_scope": "fixed labels present in this variant's gold rows"
+    },
+    "routing": {
+      "total": 38,
+      "primary_accuracy": 0.9737,
+      "required_agents_coverage": 1.0,
+      "cases": [
+        {
+          "id": "lost_01",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "lost_02",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "lost_03",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "damaged_01",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "damaged_02",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "damaged_03",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "dispute_01",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "dispute_02",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "dispute_03",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "delay_01",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "delay_02",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "delay_03",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "address_01",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "address_02",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "address_03",
+          "expected_agents": [
+            "logistics"
+          ],
+          "actual_agents": [
+            "logistics"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "logistics_01",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "logistics_02",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "logistics_03",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "greeting_01",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "greeting_02",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "complaint_01",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "complaint_02",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "request_01",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "request_02",
+          "expected_agents": [
+            "billing"
+          ],
+          "actual_agents": [
+            "billing"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "refund_01",
+          "expected_agents": [
+            "billing"
+          ],
+          "actual_agents": [
+            "billing"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "refund_02",
+          "expected_agents": [
+            "billing"
+          ],
+          "actual_agents": [
+            "billing"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "invoice_01",
+          "expected_agents": [
+            "billing"
+          ],
+          "actual_agents": [
+            "billing"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "invoice_02",
+          "expected_agents": [
+            "billing"
+          ],
+          "actual_agents": [
+            "billing"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "payment_01",
+          "expected_agents": [
+            "billing"
+          ],
+          "actual_agents": [
+            "billing"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "payment_02",
+          "expected_agents": [
+            "billing"
+          ],
+          "actual_agents": [
+            "billing"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "login_01",
+          "expected_agents": [
+            "technical"
+          ],
+          "actual_agents": [
+            "technical"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "login_02",
+          "expected_agents": [
+            "technical"
+          ],
+          "actual_agents": [
+            "technical"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "handoff_01",
+          "expected_agents": [
+            "escalation"
+          ],
+          "actual_agents": [
+            "escalation"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "handoff_02",
+          "expected_agents": [
+            "escalation"
+          ],
+          "actual_agents": [
+            "escalation"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "other_01",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "other_02",
+          "expected_agents": [
+            "general"
+          ],
+          "actual_agents": [
+            "general"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        },
+        {
+          "id": "composite_01",
+          "expected_agents": [
+            "technical",
+            "billing"
+          ],
+          "actual_agents": [
+            "billing",
+            "technical"
+          ],
+          "primary_correct": false,
+          "required_agents_present": true
+        },
+        {
+          "id": "composite_02",
+          "expected_agents": [
+            "logistics",
+            "billing"
+          ],
+          "actual_agents": [
+            "logistics",
+            "billing"
+          ],
+          "primary_correct": true,
+          "required_agents_present": true
+        }
+      ]
+    },
+    "latency_ms": {
+      "intent_p50": 1503.45,
+      "intent_p95": 13258.38,
+      "local_decision_p50": 11049.82,
+      "local_decision_p95": 13303.85
+    },
+    "decision_status_counts": {
+      "skipped": 33,
+      "applied": 5
+    },
+    "llm_failure_count": 3,
+    "local_provider_call_count": 5,
+    "local_provider_fallback_rate": 0.0
+  },
+  "logistics_tool_and_escalation": {
+    "applicable": true,
+    "tool_cases": 5,
+    "tool_success_expectation_accuracy": 1.0,
+    "escalation_candidate_cases": 3,
+    "escalation_candidate_accuracy": 1.0,
+    "escalation_precision": 1.0,
+    "escalation_recall": 1.0,
+    "false_positive_count": 0,
+    "cases": [
+      {
+        "id": "lost_threshold_met",
+        "expected_success": true,
+        "actual_success": true,
+        "expected_escalation_candidate": true,
+        "actual_escalation_candidate": true,
+        "code": null,
+        "source": "local_mock"
+      },
+      {
+        "id": "lost_followup_below_threshold",
+        "expected_success": true,
+        "actual_success": true,
+        "expected_escalation_candidate": false,
+        "actual_escalation_candidate": false,
+        "code": null,
+        "source": "local_mock"
+      },
+      {
+        "id": "non_lost_intent_on_stalled_record",
+        "expected_success": true,
+        "actual_success": true,
+        "expected_escalation_candidate": false,
+        "actual_escalation_candidate": false,
+        "code": null,
+        "source": "local_mock"
+      },
+      {
+        "id": "missing_tracking_number",
+        "expected_success": false,
+        "actual_success": false,
+        "expected_escalation_candidate": null,
+        "actual_escalation_candidate": null,
+        "code": "missing_tracking_no",
+        "source": "local_mock"
+      },
+      {
+        "id": "unknown_tracking_number",
+        "expected_success": false,
+        "actual_success": false,
+        "expected_escalation_candidate": null,
+        "actual_escalation_candidate": null,
+        "code": "not_found",
+        "source": "local_mock"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "lost_01",
+      "expected_intent": "logistics_lost",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_lost",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.7585,
+      "intent_latency_ms": 1199.62,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_lost, group=query, primary=logistics, supporting=none, scores=[logistics=1.25, general=0.10, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "lost_02",
+      "expected_intent": "logistics_lost",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_lost",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.7225,
+      "intent_latency_ms": 1036.72,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_lost, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.22, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "lost_03",
+      "expected_intent": "logistics_lost",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_lost",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.715,
+      "intent_latency_ms": 1497.92,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_lost, group=query, primary=logistics, supporting=none, scores=[logistics=1.25, general=0.22, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "damaged_01",
+      "expected_intent": "logistics_damaged",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_damaged",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.672,
+      "intent_latency_ms": 1456.91,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_damaged, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.10, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "damaged_02",
+      "expected_intent": "logistics_damaged",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_damaged",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.9453,
+      "intent_latency_ms": 15404.77,
+      "decision_source": "mapika-decider-2b-v11-q4-gguf",
+      "decision_status": "applied",
+      "decision_latency_ms": 13303.85,
+      "llm_failed": true,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_damaged, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.22, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "damaged_03",
+      "expected_intent": "logistics_damaged",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_dispute",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.602,
+      "intent_latency_ms": 1701.19,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_dispute, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.10, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "dispute_01",
+      "expected_intent": "logistics_dispute",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_dispute",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.672,
+      "intent_latency_ms": 1503.45,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_dispute, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.22, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "dispute_02",
+      "expected_intent": "logistics_dispute",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_dispute",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.6923,
+      "intent_latency_ms": 1694.99,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_dispute, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.10, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "dispute_03",
+      "expected_intent": "logistics_dispute",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_dispute",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.7004,
+      "intent_latency_ms": 1506.12,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_dispute, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.10, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "delay_01",
+      "expected_intent": "logistics_delay",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_delay",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.679,
+      "intent_latency_ms": 1277.52,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_delay, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.10, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "delay_02",
+      "expected_intent": "logistics_delay",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_delay",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.665,
+      "intent_latency_ms": 1536.41,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_delay, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.34, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "delay_03",
+      "expected_intent": "logistics_delay",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_delay",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.679,
+      "intent_latency_ms": 1256.02,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_delay, group=query, primary=logistics, supporting=none, scores=[logistics=1.25, general=0.10, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "address_01",
+      "expected_intent": "logistics_address",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_address",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.7231,
+      "intent_latency_ms": 1876.65,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_address, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.10, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "address_02",
+      "expected_intent": "logistics_address",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_address",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.7268,
+      "intent_latency_ms": 1196.65,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_address, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.22, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "address_03",
+      "expected_intent": "logistics_address",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_address",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.679,
+      "intent_latency_ms": 1128.19,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics"
+      ],
+      "route_reason": "intent=logistics_address, group=query, primary=logistics, supporting=none, scores=[logistics=0.85, general=0.22, technical=0.00, billing=0.00]"
+    },
+    {
+      "id": "logistics_01",
+      "expected_intent": "logistics",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.715,
+      "intent_latency_ms": 1252.58,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=logistics, group=query, primary=general, supporting=none, scores=[general=0.89, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "logistics_02",
+      "expected_intent": "logistics",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.665,
+      "intent_latency_ms": 1515.74,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=logistics, group=query, primary=general, supporting=none, scores=[general=0.65, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "logistics_03",
+      "expected_intent": "logistics",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics",
+      "predicted_common_intent": "logistics",
+      "score_intent": true,
+      "confidence": 0.722,
+      "intent_latency_ms": 1686.76,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=logistics, group=query, primary=general, supporting=none, scores=[general=0.77, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "greeting_01",
+      "expected_intent": "greeting",
+      "common_expected_intent": "greeting",
+      "predicted_intent": "greeting",
+      "predicted_common_intent": "greeting",
+      "score_intent": true,
+      "confidence": 0.7921,
+      "intent_latency_ms": 13179.4,
+      "decision_source": "mapika-decider-2b-v11-q4-gguf",
+      "decision_status": "applied",
+      "decision_latency_ms": 11049.82,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=greeting, group=greeting, primary=general, supporting=none, scores=[general=0.65, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "greeting_02",
+      "expected_intent": "greeting",
+      "common_expected_intent": "greeting",
+      "predicted_intent": "query",
+      "predicted_common_intent": "query",
+      "score_intent": true,
+      "confidence": 0.595,
+      "intent_latency_ms": 1940.84,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=query, group=query, primary=general, supporting=none, scores=[general=0.89, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "complaint_01",
+      "expected_intent": "complaint",
+      "common_expected_intent": "complaint",
+      "predicted_intent": "complaint",
+      "predicted_common_intent": "complaint",
+      "score_intent": true,
+      "confidence": 0.6962,
+      "intent_latency_ms": 1802.1,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=complaint, group=complaint, primary=general, supporting=none, scores=[general=0.65, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "complaint_02",
+      "expected_intent": "complaint",
+      "common_expected_intent": "complaint",
+      "predicted_intent": "complaint",
+      "predicted_common_intent": "complaint",
+      "score_intent": true,
+      "confidence": 0.644,
+      "intent_latency_ms": 1748.64,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=complaint, group=complaint, primary=general, supporting=none, scores=[general=0.65, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "request_01",
+      "expected_intent": "request",
+      "common_expected_intent": "request",
+      "predicted_intent": "request",
+      "predicted_common_intent": "request",
+      "score_intent": true,
+      "confidence": 0.7757,
+      "intent_latency_ms": 1463.13,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=request, group=request, primary=general, supporting=none, scores=[general=0.77, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "request_02",
+      "expected_intent": "account",
+      "common_expected_intent": "account",
+      "predicted_intent": "account",
+      "predicted_common_intent": "account",
+      "score_intent": true,
+      "confidence": 0.665,
+      "intent_latency_ms": 1629.45,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "billing",
+      "route_agents": [
+        "billing"
+      ],
+      "route_reason": "intent=account, group=account, primary=billing, supporting=none, scores=[billing=0.75, general=0.10, technical=0.00, logistics=0.00]"
+    },
+    {
+      "id": "refund_01",
+      "expected_intent": "refund",
+      "common_expected_intent": "refund",
+      "predicted_intent": "refund",
+      "predicted_common_intent": "refund",
+      "score_intent": true,
+      "confidence": 0.715,
+      "intent_latency_ms": 1373.98,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "billing",
+      "route_agents": [
+        "billing"
+      ],
+      "route_reason": "intent=refund, group=billing, primary=billing, supporting=none, scores=[billing=0.93, general=0.10, technical=0.00, logistics=0.00]"
+    },
+    {
+      "id": "refund_02",
+      "expected_intent": "refund",
+      "common_expected_intent": "refund",
+      "predicted_intent": "refund",
+      "predicted_common_intent": "refund",
+      "score_intent": true,
+      "confidence": 0.694,
+      "intent_latency_ms": 1594.65,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "billing",
+      "route_agents": [
+        "billing"
+      ],
+      "route_reason": "intent=refund, group=billing, primary=billing, supporting=none, scores=[billing=0.93, general=0.10, technical=0.00, logistics=0.00]"
+    },
+    {
+      "id": "invoice_01",
+      "expected_intent": "invoice",
+      "common_expected_intent": "invoice",
+      "predicted_intent": "invoice",
+      "predicted_common_intent": "invoice",
+      "score_intent": true,
+      "confidence": 0.737,
+      "intent_latency_ms": 1474.76,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "billing",
+      "route_agents": [
+        "billing"
+      ],
+      "route_reason": "intent=invoice, group=billing, primary=billing, supporting=none, scores=[billing=0.75, general=0.10, technical=0.00, logistics=0.00]"
+    },
+    {
+      "id": "invoice_02",
+      "expected_intent": "invoice",
+      "common_expected_intent": "invoice",
+      "predicted_intent": "invoice",
+      "predicted_common_intent": "invoice",
+      "score_intent": true,
+      "confidence": 0.761,
+      "intent_latency_ms": 986.82,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "billing",
+      "route_agents": [
+        "billing"
+      ],
+      "route_reason": "intent=invoice, group=billing, primary=billing, supporting=none, scores=[billing=0.93, general=0.10, technical=0.00, logistics=0.00]"
+    },
+    {
+      "id": "payment_01",
+      "expected_intent": "payment_issue",
+      "common_expected_intent": "payment_issue",
+      "predicted_intent": "payment_issue",
+      "predicted_common_intent": "payment_issue",
+      "score_intent": true,
+      "confidence": 0.672,
+      "intent_latency_ms": 1779.18,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "billing",
+      "route_agents": [
+        "billing"
+      ],
+      "route_reason": "intent=payment_issue, group=billing, primary=billing, supporting=none, scores=[billing=1.11, general=0.10, technical=0.00, logistics=0.00]"
+    },
+    {
+      "id": "payment_02",
+      "expected_intent": "payment_issue",
+      "common_expected_intent": "payment_issue",
+      "predicted_intent": "payment_issue",
+      "predicted_common_intent": "payment_issue",
+      "score_intent": true,
+      "confidence": 0.672,
+      "intent_latency_ms": 1244.01,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "billing",
+      "route_agents": [
+        "billing"
+      ],
+      "route_reason": "intent=payment_issue, group=billing, primary=billing, supporting=none, scores=[billing=0.75, general=0.10, technical=0.00, logistics=0.00]"
+    },
+    {
+      "id": "login_01",
+      "expected_intent": "technical_login",
+      "common_expected_intent": "technical_login",
+      "predicted_intent": "technical_login",
+      "predicted_common_intent": "technical_login",
+      "score_intent": true,
+      "confidence": 0.729,
+      "intent_latency_ms": 1096.02,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "technical",
+      "route_agents": [
+        "technical"
+      ],
+      "route_reason": "intent=technical_login, group=technical, primary=technical, supporting=none, scores=[technical=0.93, general=0.10, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "login_02",
+      "expected_intent": "technical_login",
+      "common_expected_intent": "technical_login",
+      "predicted_intent": "technical_login",
+      "predicted_common_intent": "technical_login",
+      "score_intent": true,
+      "confidence": 0.7781,
+      "intent_latency_ms": 1294.48,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "technical",
+      "route_agents": [
+        "technical"
+      ],
+      "route_reason": "intent=technical_login, group=technical, primary=technical, supporting=none, scores=[technical=1.13, general=0.10, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "handoff_01",
+      "expected_intent": "human_handoff",
+      "common_expected_intent": "human_handoff",
+      "predicted_intent": "human_handoff",
+      "predicted_common_intent": "human_handoff",
+      "score_intent": true,
+      "confidence": 0.722,
+      "intent_latency_ms": 1091.29,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "escalation",
+      "route_agents": [
+        "escalation"
+      ],
+      "route_reason": "意图为 human_handoff，触发升级路由"
+    },
+    {
+      "id": "handoff_02",
+      "expected_intent": "human_handoff",
+      "common_expected_intent": "human_handoff",
+      "predicted_intent": "human_handoff",
+      "predicted_common_intent": "human_handoff",
+      "score_intent": true,
+      "confidence": 0.743,
+      "intent_latency_ms": 1070.77,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "escalation",
+      "route_agents": [
+        "escalation"
+      ],
+      "route_reason": "意图为 human_handoff，触发升级路由"
+    },
+    {
+      "id": "other_01",
+      "expected_intent": "other",
+      "common_expected_intent": "other",
+      "predicted_intent": "order_status",
+      "predicted_common_intent": "order_status",
+      "score_intent": true,
+      "confidence": 0.3846,
+      "intent_latency_ms": 12426.96,
+      "decision_source": "mapika-decider-2b-v11-q4-gguf",
+      "decision_status": "applied",
+      "decision_latency_ms": 10759.26,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=order_status, group=query, primary=general, supporting=none, scores=[general=0.65, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "other_02",
+      "expected_intent": "other",
+      "common_expected_intent": "other",
+      "predicted_intent": "query",
+      "predicted_common_intent": "query",
+      "score_intent": true,
+      "confidence": 0.68,
+      "intent_latency_ms": 1570.5,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0,
+      "llm_failed": false,
+      "route_primary": "general",
+      "route_agents": [
+        "general"
+      ],
+      "route_reason": "intent=query, group=query, primary=general, supporting=none, scores=[general=0.77, technical=0.00, billing=0.00, logistics=0.00]"
+    },
+    {
+      "id": "composite_01",
+      "expected_intent": "technical_login",
+      "common_expected_intent": "technical_login",
+      "predicted_intent": "billing",
+      "predicted_common_intent": "billing",
+      "score_intent": false,
+      "confidence": 0.4281,
+      "intent_latency_ms": 13093.28,
+      "decision_source": "mapika-decider-2b-v11-q4-gguf",
+      "decision_status": "applied",
+      "decision_latency_ms": 11313.7,
+      "llm_failed": true,
+      "route_primary": "billing",
+      "route_agents": [
+        "billing",
+        "technical"
+      ],
+      "route_reason": "intent=billing, group=billing, primary=billing, supporting=technical, scores=[billing=1.11, technical=0.38, general=0.10, logistics=0.00]"
+    },
+    {
+      "id": "composite_02",
+      "expected_intent": "logistics_dispute",
+      "common_expected_intent": "logistics",
+      "predicted_intent": "logistics_dispute",
+      "predicted_common_intent": "logistics",
+      "score_intent": false,
+      "confidence": 0.9339,
+      "intent_latency_ms": 13258.38,
+      "decision_source": "mapika-decider-2b-v11-q4-gguf",
+      "decision_status": "applied",
+      "decision_latency_ms": 10798.2,
+      "llm_failed": true,
+      "route_primary": "logistics",
+      "route_agents": [
+        "logistics",
+        "billing"
+      ],
+      "route_reason": "intent=logistics_dispute, group=query, primary=logistics, supporting=billing, scores=[logistics=0.85, general=0.22, billing=0.18, technical=0.00]"
+    }
+  ],
+  "metric_reaggregation": {
+    "version": "gold-supported-labels-v1",
+    "timestamp_utc": "2026-10-17T15:22:23.179326+00:00",
+    "note": "Per-case predictions are unchanged; macro-F1 uses the fixed labels present in gold rows so prediction-only labels do not change the denominator."
+  }
+}
