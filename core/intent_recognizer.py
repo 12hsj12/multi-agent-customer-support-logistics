@@ -3,11 +3,11 @@
 
 三路融合策略：
   1. LLM 语义理解（权重 70%）—— 主力，理解复杂语义和上下文
-  2. Embedding 向量相似度（权重 20%）—— 快速匹配常见表达
+  2. 向量相似度（权重 20%）—— 当前 Anthropic SDK 未提供所需 Embedding 资源时使用本地字符 n-gram 哈希向量
   3. 关键词模式匹配（权重 10%）—— 零延迟兜底
 
 三路结果通过加权投票合并，置信度低于阈值时降级为 OTHER。
-LLM 和 Embedding 并行调用，不串行等待。
+LLM 和向量分支并行运行。客户端若提供 Embedding API 则尝试远端调用；否则使用字符 n-gram 哈希向量，不加载预训练语义模型。
 """
 import asyncio
 import hashlib
@@ -82,7 +82,7 @@ class IntentResult:
     decision_latency_ms: float = 0.0
 
 
-# ── Few-shot 模板（同时用于 LLM 示例和 Embedding 匹配）────────────────────────
+# ── Few-shot 模板（同时用于 LLM 示例和向量相似度匹配）──────────────────────────
 _TEMPLATES: Dict[IntentCategory, List[str]] = {
     IntentCategory.QUERY:      ["我的订单状态是什么？", "如何重置密码？", "快递什么时候到？"],
     IntentCategory.COMPLAINT:  ["等了好几个小时！", "服务太差了！", "一直没人处理！"],
@@ -174,8 +174,9 @@ class IntentRecognizer:
     """
     端到端意图识别器。
 
-    初始化时不加载任何本地模型，所有 AI 能力通过 Anthropic API 调用。
-    模板 Embedding 在首次请求时懒加载并缓存，后续复用。
+    不加载本地神经网络模型。LLM 通过 Anthropic 兼容接口调用；向量分支在客户端
+    没有 Embedding API 时使用本地 256 维字符 n-gram 哈希向量，不是预训练语义 Embedding。
+    模板向量在首次请求时懒加载并缓存，后续复用。
     """
 
     def __init__(
@@ -462,7 +463,7 @@ class IntentRecognizer:
             return {"intent": IntentCategory.OTHER, "confidence": 0.0, "reasoning": "LLM 失败", "failed": True}
 
     async def _embedding_recognize(self, message: str) -> Dict[str, Any]:
-        """策略 2：Embedding 向量相似度匹配。"""
+        """策略 2：远端 Embedding 或本地字符 n-gram 哈希向量相似度匹配。"""
         try:
             await self._load_template_embeddings()
             msg_vec = await self._embed_text(message)
@@ -572,7 +573,7 @@ class IntentRecognizer:
     # ── 辅助 ──────────────────────────────────────────────────────────────────
 
     async def _load_template_embeddings(self) -> None:
-        """懒加载所有模板的 Embedding（只在首次调用时执行）。"""
+        """懒加载所有模板向量（只在首次调用时执行）。"""
         missing = [cat for cat in _TEMPLATES if cat not in self._tpl_embeddings]
         if not missing:
             return

@@ -9,7 +9,7 @@
 关键设计：
   - 上下文构建时三级记忆融合，按重要性 + 时效性排序
   - 工作记忆超过阈值时自动压缩（LLM 摘要），防止 context 爆炸
-  - 所有 Embedding 通过 Anthropic API 生成，无本地模型
+  - 情景记忆和用户画像的向量由 ChromaDB 默认 Embedding function 生成；Anthropic API 用于 LLM 摘要和画像提炼
 """
 import hashlib
 import asyncio

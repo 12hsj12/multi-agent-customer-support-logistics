@@ -1,62 +1,49 @@
-# EchoMind Skills 文档
+# 动态 Skills 使用说明
 
-EchoMind 启动时会从 `ECHOMIND_SKILLS_DIR` 读取 Skills，并在匹配用户请求时注入到对应 Agent 的 system prompt。Skills 适合维护业务处理规范、客服话术、技术排障 SOP、账单审核边界、升级规则和禁止事项。
+服务启动时，ECHOMIND_SKILLS_DIR 指定的目录会被扫描；默认目录为仓库的 skills/。Skill 依据 front matter 中的 enabled、agents 和 keywords 配置匹配用户请求，再按提示预算注入目标 LLM Agent 的 system prompt。修改文件后可调用 POST /skills/reload 热加载。
 
-当前内置三类 Skills：
+## 内置 Skills
 
-```text
-skills/general_customer_service/SKILL.md  # 通用客服：接待、澄清、分流、投诉和转人工
-skills/technical_support/SKILL.md         # 技术支持：故障排查、接口错误、部署配置和安全边界
-skills/billing_support/SKILL.md           # 账单服务：扣款、退款、发票、订阅和财务审核
-```
+| 目录 | 适用 Agent | 内容 |
+|---|---|---|
+| general_customer_service/SKILL.md | general | 接待、澄清、分流、投诉与转人工 |
+| technical_support/SKILL.md | technical | 故障排查、错误码、部署与安全边界 |
+| billing_support/SKILL.md | billing | 扣款、退款、发票与财务审核边界 |
+| logistics_support/SKILL.md | logistics | 物流纠纷分类、信息收集、模拟数据边界与升级候选条件 |
 
-## Skill 文件格式
-
-推荐每个 Skill 使用独立目录，并将主文件命名为 `SKILL.md`：
+## Skill 文件结构
 
 ```text
 skills/<skill_name>/SKILL.md
 ```
 
-文件顶部使用简单 front matter：
+示例 front matter：
 
 ```markdown
 ---
-name: 技术支持处理规范
-description: 适用于 TechnicalAgent 的故障排查和升级处理规范
-keywords: 报错,错误,接口,API,部署,超时,500,401,日志
-agents: technical
+name: 物流纠纷处理规范
+description: 适用于 LogisticsAgent 的纠纷信息收集与交接规范
+keywords: 物流,快递,运单,丢件,破损,签收,延误,地址
+agents: logistics
 enabled: true
 ---
 ```
 
-字段说明：
+常用字段：
 
-- `name`：Skill 展示名称，会出现在注入给模型的 prompt 中。
-- `description`：简短说明，方便 `/skills` 接口排查。
-- `keywords`：触发关键词，用户消息命中后才注入；多个关键词用英文逗号或中文逗号分隔均可。
-- `agents`：适用 Agent，可填 `general`、`technical`、`billing`，多个值用逗号分隔。
-- `enabled`：是否启用，支持 `true/false`。
+- name：Skill 名称，会显示在 /skills 状态中。
+- description：用途说明。
+- keywords：消息关键词，英文逗号或中文逗号分隔。
+- agents：适用 Agent 类型。
+- enabled：是否启用。
 
-## 编写要求
+加载器支持 .md、.txt、.json 文件，也支持子目录中的 SKILL.md。单个 Skill 解析失败会被记录，不阻止其他 Skill 加载。总注入长度受 ECHOMIND_SKILLS_MAX_PROMPT_CHARS 限制。
 
-- 重要规则放在文档前半部分，因为过长内容会按 prompt 预算截断。
-- 一类 Skill 只描述一类职责，不要把技术、账单、通用客服规则混在一个文件里。
-- 必须包含“角色定位”“处理流程”“升级条件”“禁止事项”等稳定章节。
-- 对用户隐私、支付、密码、验证码、API Key、Token 等敏感信息必须写明禁止收集或禁止公开。
-- 对无法保证的事项使用保守措辞，例如“通常”“预计”“需要核验后确认”。
-- 对需要人工、财务、二线技术处理的场景要明确写出升级条件。
-
-## 热加载
-
-修改 Skill 文件后，不需要重启服务，调用：
-
-```bash
-curl -X POST http://localhost:8000/skills/reload
-```
-
-查看加载结果和解析错误：
+## 查看与热加载
 
 ```bash
 curl http://localhost:8000/skills
+curl -X POST http://localhost:8000/skills/reload
 ```
+
+物流 Skill 和 data/demo_docs/logistics_demo_policy.md 的职责不同：Skill 规定 Agent 如何收集信息、解释 local_mock 结果以及何时生成应用内交接；模拟文档只用于演示知识库检索，不是承运商政策。
