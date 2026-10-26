@@ -1,7 +1,8 @@
 """Decision provider adapters used by intent arbitration.
 
-The Mapika provider loads the checked-in GGUF model in process. The HTTP
-adapter remains available for a separately hosted OpenJev-compatible service.
+OpenJev runs as a separate service and calls an OpenAI-compatible model in
+oneshot mode. Official Jev uses the TypeSafe System One wire protocol. The
+Mapika GGUF provider remains an optional local backend.
 """
 from __future__ import annotations
 
@@ -50,22 +51,53 @@ class DecisionProvider(Protocol):
         """Choose one supplied candidate, or return a non-decided status."""
 
 
-class OpenJevProvider:
-    """HTTP adapter for a locally hosted OpenJev-compatible decider server."""
+def _state_and_question(
+    message: str,
+    candidates: Mapping[str, str],
+    history: Optional[Sequence[Mapping[str, str]]],
+) -> tuple[dict, dict]:
+    state: Dict[str, Any] = {"message": message}
+    if history:
+        state["history"] = [
+            {
+                "role": str(item.get("role", "user")),
+                "content": str(item.get("content", "")),
+            }
+            for item in history[-3:]
+        ]
+    questions = {
+        "intent": {
+            "type": "choice",
+            "instructions": (
+                "根据用户本轮主要诉求选择最匹配的一个意图。只有确实不属于任何候选意图时选择 other。"
+            ),
+            "criteria": dict(candidates),
+        }
+    }
+    return state, questions
 
-    source = "openjev"
+
+class _SystemOneHttpProvider:
+    """Shared transport and strict answer validation for Jev-shaped APIs."""
+
+    endpoint = "/v1/systemone"
+    source = "official_jev"
 
     def __init__(
         self,
         base_url: str,
+        model: str = "jev-latest",
         timeout_seconds: float = 8.0,
         api_key: Optional[str] = None,
     ):
         if not base_url or not base_url.strip():
-            raise ValueError("OpenJev base URL must not be empty")
+            raise ValueError("System One base URL must not be empty")
+        if not model or not model.strip():
+            raise ValueError("System One model must not be empty")
         if timeout_seconds <= 0:
-            raise ValueError("OpenJev timeout must be positive")
+            raise ValueError("System One timeout must be positive")
         self.base_url = base_url.rstrip("/")
+        self.model = model.strip()
         self.timeout_seconds = timeout_seconds
         self.api_key = api_key.strip() if api_key and api_key.strip() else None
 
@@ -75,27 +107,8 @@ class OpenJevProvider:
         candidates: Mapping[str, str],
         history: Optional[Sequence[Mapping[str, str]]],
     ) -> dict:
-        state = {"message": message}
-        if history:
-            state["history"] = [
-                {
-                    "role": str(item.get("role", "user")),
-                    "content": str(item.get("content", "")),
-                }
-                for item in history[-3:]
-            ]
-        return {
-            "state": state,
-            "questions": {
-                "intent": {
-                    "type": "choice",
-                    "instructions": (
-                        "根据用户本轮主要诉求选择最匹配的一个意图。只有确实不属于任何候选意图时选择 other。"
-                    ),
-                    "criteria": dict(candidates),
-                }
-            },
-        }
+        state, questions = _state_and_question(message, candidates, history)
+        return {"model": self.model, "state": state, "questions": questions}
 
     async def _post_json(self, payload: dict) -> dict:
         headers = {"Content-Type": "application/json"}
@@ -103,7 +116,7 @@ class OpenJevProvider:
             headers["Authorization"] = f"Bearer {self.api_key}"
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             response = await client.post(
-                f"{self.base_url}/v1/systemone",
+                f"{self.base_url}{self.endpoint}",
                 json=payload,
                 headers=headers,
             )
@@ -120,68 +133,84 @@ class OpenJevProvider:
         history: Optional[Sequence[Mapping[str, str]]] = None,
     ) -> DecisionResult:
         started = time.monotonic()
-        payload = self._payload(message, candidates, history)
-        try:
-            body = await self._post_json(payload)
-        except httpx.TimeoutException:
+        if len(candidates) < 2:
             return DecisionResult(
                 label=None,
                 confidence=None,
                 source=self.source,
+                latency_ms=0.0,
+                status=DecisionStatus.ABSTAINED,
+                error_code="insufficient_candidates",
+            )
+        try:
+            body = await self._post_json(self._payload(message, candidates, history))
+        except httpx.TimeoutException:
+            return DecisionResult(
+                label=None, confidence=None, source=self.source,
                 latency_ms=(time.monotonic() - started) * 1000,
-                status=DecisionStatus.TIMEOUT,
-                error_code="timeout",
+                status=DecisionStatus.TIMEOUT, error_code="timeout",
             )
         except (httpx.HTTPError, ValueError):
             return DecisionResult(
-                label=None,
-                confidence=None,
-                source=self.source,
+                label=None, confidence=None, source=self.source,
                 latency_ms=(time.monotonic() - started) * 1000,
                 status=DecisionStatus.ERROR,
                 error_code="invalid_or_unavailable_response",
             )
-        except Exception:
-            # Keep provider failures from breaking the original intent path.
+        except Exception as exc:
+            logger.warning("System One provider failed: %s", type(exc).__name__)
             return DecisionResult(
-                label=None,
-                confidence=None,
-                source=self.source,
+                label=None, confidence=None, source=self.source,
                 latency_ms=(time.monotonic() - started) * 1000,
-                status=DecisionStatus.ERROR,
-                error_code="provider_error",
+                status=DecisionStatus.ERROR, error_code="provider_error",
             )
 
         answers = body.get("answers")
+        if body.get("error"):
+            return DecisionResult(
+                label=None, confidence=None, source=self.source,
+                latency_ms=(time.monotonic() - started) * 1000,
+                status=DecisionStatus.ERROR, error_code="remote_error",
+            )
         if not isinstance(answers, dict):
             return DecisionResult(
-                label=None,
-                confidence=None,
-                source=self.source,
+                label=None, confidence=None, source=self.source,
                 latency_ms=(time.monotonic() - started) * 1000,
-                status=DecisionStatus.ABSTAINED,
-                error_code="missing_answers",
+                status=DecisionStatus.ABSTAINED, error_code="missing_answers",
             )
-        answer = answers.get("intent", {})
+        answer = answers.get("intent")
         if not isinstance(answer, dict):
             answer = {}
+        answer_type = answer.get("type")
+        if answer_type != "choice":
+            return DecisionResult(
+                label=None, confidence=None, source=self.source,
+                latency_ms=(time.monotonic() - started) * 1000,
+                status=DecisionStatus.ABSTAINED,
+                error_code="missing_or_invalid_answer_type",
+            )
         label = answer.get("choice")
         if not isinstance(label, str) or label not in candidates:
             return DecisionResult(
-                label=None,
-                confidence=None,
-                source=self.source,
+                label=None, confidence=None, source=self.source,
                 latency_ms=(time.monotonic() - started) * 1000,
                 status=DecisionStatus.ABSTAINED,
                 error_code="missing_or_unknown_choice",
             )
 
-        raw_confidence = answer.get("x_p_max", answer.get("confidence"))
+        raw_confidence = answer.get("confidence")
+        if raw_confidence is None:
+            probabilities = answer.get("probabilities")
+            if isinstance(probabilities, dict):
+                raw_confidence = probabilities.get(label)
         confidence: Optional[float] = None
-        if isinstance(raw_confidence, (int, float)) and math.isfinite(raw_confidence):
-            candidate_confidence = float(raw_confidence)
-            if 0.0 <= candidate_confidence <= 1.0:
-                confidence = candidate_confidence
+        if (
+            isinstance(raw_confidence, (int, float))
+            and not isinstance(raw_confidence, bool)
+            and math.isfinite(raw_confidence)
+            and 0.0 <= float(raw_confidence) <= 1.0
+        ):
+            confidence = float(raw_confidence)
         return DecisionResult(
             label=label,
             confidence=confidence,
@@ -189,6 +218,51 @@ class OpenJevProvider:
             latency_ms=(time.monotonic() - started) * 1000,
             status=DecisionStatus.DECIDED,
         )
+
+
+class OpenJevApiProvider(_SystemOneHttpProvider):
+    """Calls OpenJev's /api/evaluate using its single-call oneshot backend."""
+
+    endpoint = "/api/evaluate"
+    source = "openjev"
+
+    def __init__(
+        self,
+        base_url: str,
+        model: str = "deepseek-flash",
+        timeout_seconds: float = 8.0,
+        mode: str = "oneshot",
+    ):
+        normalized_mode = mode.strip().lower()
+        if normalized_mode not in {"oneshot", "decider"}:
+            raise ValueError("OpenJev mode must be oneshot or decider")
+        super().__init__(base_url, model=model, timeout_seconds=timeout_seconds)
+        self.mode = normalized_mode
+
+    def _payload(
+        self,
+        message: str,
+        candidates: Mapping[str, str],
+        history: Optional[Sequence[Mapping[str, str]]],
+    ) -> dict:
+        state, questions = _state_and_question(message, candidates, history)
+        return {
+            "mode": self.mode,
+            "model": self.model,
+            "temperature": 0,
+            "state": state,
+            "questions": questions,
+        }
+
+
+class OfficialJevProvider(_SystemOneHttpProvider):
+    """Adapter reserved for the official TypeSafe System One API."""
+
+    source = "official_jev"
+
+
+# Backwards-compatible name for callers that imported the earlier adapter.
+OpenJevProvider = OpenJevApiProvider
 
 
 @dataclass(frozen=True)
@@ -396,20 +470,42 @@ def create_local_decision_provider() -> Optional[DecisionProvider]:
             n_gpu_layers=0,
         )
 
-    if provider_name == "openjev_http":
-        base_url = os.getenv("ECHOMIND_OPENJEV_BASE_URL", "").strip()
-        if not base_url:
-            logger.warning("OpenJev HTTP 决策后端未配置 ECHOMIND_OPENJEV_BASE_URL")
-            return None
+    if provider_name in {"openjev", "openjev_http"}:
+        base_url = os.getenv(
+            "ECHOMIND_OPENJEV_BASE_URL", "http://openjev:3001"
+        ).strip()
         try:
             timeout_seconds = float(os.getenv("ECHOMIND_OPENJEV_TIMEOUT_SECONDS", "8"))
-            return OpenJevProvider(
+            return OpenJevApiProvider(
                 base_url,
+                model=os.getenv(
+                    "ECHOMIND_OPENJEV_MODEL",
+                    os.getenv("OPENJEV_MODEL", "deepseek-flash"),
+                ).strip(),
                 timeout_seconds=timeout_seconds,
-                api_key=os.getenv("ECHOMIND_OPENJEV_API_KEY"),
+                mode=os.getenv("ECHOMIND_OPENJEV_MODE", "oneshot"),
             )
         except ValueError:
             logger.warning("OpenJev HTTP 决策配置无效，local 决策将回退 baseline")
+            return None
+
+    if provider_name in {"official_jev", "typesafe_jev"}:
+        api_key = os.getenv("ECHOMIND_OFFICIAL_JEV_API_KEY", "").strip()
+        if not api_key:
+            logger.warning("官方 Jev 未配置 API Key，local 决策将回退 baseline")
+            return None
+        base_url = os.getenv("ECHOMIND_OFFICIAL_JEV_BASE_URL", "https://api.typesafe.ai").strip()
+        model = os.getenv("ECHOMIND_OFFICIAL_JEV_MODEL", "jev-latest").strip()
+        try:
+            timeout_seconds = float(os.getenv("ECHOMIND_OFFICIAL_JEV_TIMEOUT_SECONDS", "8"))
+            return OfficialJevProvider(
+                base_url,
+                model=model,
+                timeout_seconds=timeout_seconds,
+                api_key=api_key,
+            )
+        except ValueError:
+            logger.warning("官方 Jev 配置无效，local 决策将回退 baseline")
             return None
 
     logger.warning("未知本地决策提供方，回退 baseline: %s", provider_name)

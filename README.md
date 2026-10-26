@@ -6,13 +6,13 @@
 
 - **细粒度意图识别**：LLM、字符 n-gram 向量相似度和关键词规则三路识别；抽取运单号、订单号、金额、日期和错误码等字段。
 - **协同决策与 Agent 路由**：综合意图、领域关键词、实体和 Agent 在线表现选择主路由；复合请求可并行调用多个专业 Agent。
-- **可切换的决策后端**：baseline 默认保持三路融合；local 在不确定结果上调用 Mapika GGUF 决策器，并在异常时回退。
+- **可切换的决策后端**：Compose 默认启用独立 OpenJev oneshot 服务，以 DeepSeek `deepseek-flash` 复核不确定结果；保留 baseline 高置信优先和异常回退，Mapika GGUF 仍可选。
 - **业务工具**：物流本地模拟查询、技术排障辅助、账单字段检查与金额比较、人工交接摘要，以及 Agent 可按需使用的知识检索。
 - **RAG**：Agent 自主决定是否调用共享知识库工具；检索链路包含查询改写、并行召回、合并去重、重排、缓存和故障回退。
 - **动态 Skills**：根据 Agent 类型和用户消息匹配业务规则，支持运行时重新加载。
 - **分层记忆**：Redis 保存会话工作记忆和摘要；ChromaDB 保存情景记忆、用户画像及知识库向量。
 - **监控与评测**：请求级 request_id、工具调用轨迹、Agent/工具运行统计、Prometheus 指标、LLM-as-Judge 和固定意图评测记录。
-- **容器部署**：Docker Compose 编排 FastAPI、Redis、ChromaDB、Prometheus 与 Nginx。
+- **容器部署**：Docker Compose 编排 FastAPI、独立 OpenJev、Redis、ChromaDB、Prometheus 与 Nginx。
 
 ## 整体架构
 
@@ -21,7 +21,7 @@
   -> FastAPI /chat
   -> 读取会话记忆
   -> IntentRecognizer：LLM + 字符 n-gram + Pattern 融合
-  -> 可选 local 决策复核（默认 baseline；高置信 LLM 优先；失败回退）
+  -> Compose 默认由 OpenJev oneshot 复核不确定决策（高置信 LLM 优先；失败回退到 baseline）
   -> AgentOrchestrator：主 Agent / 辅助 Agent / 监控降级
   -> Agent Skills + 工具白名单 + 按需工具调用
        ├─ GeneralAgent
@@ -49,7 +49,7 @@
 
 普通物流进度咨询仍可走 GeneralAgent。技术类、账单类、通用咨询和人工升级分别由 TechnicalAgent、BillingAgent、GeneralAgent、EscalationAgent 处理。路由器还检查复合领域信号；例如签收争议同时申请退款时，可由 Logistics 与 Billing Agent 并行处理。低置信度 other 可先追问澄清；CRITICAL 或明确转人工意图进入升级路由。
 
-三路 baseline 的融合权重为 LLM 0.7、向量相似度 0.2、关键词模式 0.1。当前 Anthropic SDK 不提供此处使用的 embeddings 资源，向量分支实际回退到本地 256 维字符 n-gram 哈希向量。启用 local 时，默认决策阈值为 0.65；未失败且置信度不低于 0.85 的 LLM 结果优先，不再调用本地模型。其他情况下，若融合置信度偏低、结果为 other 或多路结果冲突，才触发 Mapika 决策器。拒判、超时、缺少模型或其他异常均保留 baseline 结果。两种来源的置信信号不视为已校准、可直接比较。
+三路 baseline 的融合权重为 LLM 0.7、向量相似度 0.2、关键词模式 0.1。当前 Anthropic SDK 不提供此处使用的 embeddings 资源，向量分支实际回退到本地 256 维字符 n-gram 哈希向量。Compose 默认启用 local 决策，阈值为 0.65；未失败且置信度不低于 0.85 的 LLM 结果优先，不再调用 OpenJev。其他情况下，若融合置信度偏低、结果为 other 或多路结果冲突，才触发 OpenJev `/api/evaluate` oneshot。拒判、超时、缺少模型或其他异常均保留 baseline 结果。OpenJev 的置信信号不视为与 baseline 已校准、可直接比较。Mapika GGUF 可通过 `ECHOMIND_LOCAL_DECISION_PROVIDER=mapika_gguf` 选择。
 
 意图识别的字符 n-gram 哈希向量不是预训练语义 Embedding；ChromaDB 的默认 ONNX Embedding 用于 RAG 知识库和记忆检索，是独立路径。
 
@@ -75,7 +75,7 @@ Skills 与 RAG 分工不同：知识库提供可检索的业务材料，Skill �
 |---|---|
 | API 与模型调用 | Python 3.12 Docker 镜像、FastAPI、Pydantic、Anthropic SDK 兼容接口 |
 | Agent 与工具编排 | AgentOrchestrator、角色契约、工具白名单、并行协作、降级路由 |
-| 本地决策 | Mapika Decider GGUF、llama-cpp-python CPU 推理、统一 DecisionProvider 协议 |
+| 决策后端 | OpenJev `/api/evaluate` oneshot + DeepSeek OpenAI-compatible API、统一 DecisionProvider；Mapika GGUF 可选 |
 | 检索与存储 | ChromaDB、Redis、查询改写与重排、ChromaDB 内置向量模型 |
 | 监控与评测 | Prometheus Client、在线 Monitor、LLM-as-Judge、固定 JSON benchmark |
 | 部署 | Docker Compose、Nginx、Redis、ChromaDB、Prometheus |
@@ -96,6 +96,17 @@ P95 是 38 条单次意图识别耗时的最近秩统计值，不是完整 /chat
 
 G3 历史报告注明的模型为 Mapika/decider-2b-GGUF:decider-2b-v11-Q4_K_M.gguf，运行记录为 deepseek-flash、decider_ai 1.5.0、llama-cpp-python 0.3.35 和仅作为导入依赖的 torch 2.9.1+cpu。该报告标记 working-tree-G3，其意图识别、Orchestrator 和物流工具源码摘要与当前文件不一致，并记录为评测时直接调用 GGUFDecider.decide，没有调用当前生产 MapikaGgufProvider 路径。报告没有记录操作系统、CPU/GPU、完整 Python 环境或完整源代码提交，因此不能将它描述为当前运行时的可复现性能结果。按当前 benchmark 脚本口径对报告中的 38 条逐样本延迟复算，P95 与保存值吻合；原始执行环境仍不完整。
 
+### OpenJev + DeepSeek 实测
+
+真实 DeepSeek oneshot smoke、OpenJev HTTP Docker E2E 和真实 FastAPI `/chat` 全栈 E2E 均已通过。两次全栈合成请求均返回 `decision_source=openjev`、`decision_status=applied` 和 `request_id`；端到端耗时分别为 16.7/20.5 秒，OpenJev 决策耗时为 6.85/3.66 秒。OpenJev 模型为 `deepseek-flash`。固定 38 条样本两次配对运行均保留：首轮报告 [openjev_paired_20261026T022620262830Z.json](data/eval/g5_results/openjev_paired_20261026T022620262830Z.json)，最终源码报告 [openjev_paired_20261026T024116143097Z.json](data/eval/g5_results/openjev_paired_20261026T024116143097Z.json)。
+
+| 配对运行 | 共同标签准确率 / Macro-F1（baseline → OpenJev） | 五类物流准确率（baseline → OpenJev） | OpenJev 调用 / 采纳 / 回退 |
+|---|---|---|---|
+| 首轮 | 94.4% / 0.9394 → 91.7% / 0.9368 | 86.7% → 93.3% | 5 / 4 / 1 |
+| 最终源码 | 88.9% / 0.9065 → 94.4% / 0.9394 | 86.7% → 100% | 6 / 6 / 0 |
+
+两次运行的整体准确率变化方向不一致，最新一轮又记录到 baseline 与 OpenJev 增强链路各 38 次识别中分别有 4 次、6 次 LLM 解析/API 失败事件；因此不能声称稳定的准确率提升。最终源码运行的 baseline、OpenJev 增强链路端到端 P50/P95 分别为 1,356/2,442 ms、1,513/7,150 ms；OpenJev 决策 P50/P95 为 3,103/5,636 ms。38 条固定样本规模和远程模型的错误/波动限制了结论。详细协议、运行方式和限制见[决策后端说明](docs/openjev-decision-provider.md)。
+
 另有一份较早物流结果 [g2_logistics.json](data/eval/g4_results/g2_logistics.json)，其数据集摘要为 6d4fa7801382ecaf76689dca2b92d2b56aca75d8a1acae07691dd32d6edb1a8a，与上表数据集不同，单独保留为历史记录，不与表中结果混算。所有历史报告和固定样本均保留在 [data/eval/](data/eval/)。
 
 ## 启动
@@ -108,7 +119,7 @@ git lfs pull
 cp .env.example .env
 ```
 
-编辑 .env，至少设置 ANTHROPIC_API_KEY 和唯一的 REDIS_PASSWORD。默认 ECHOMIND_DECISION_BACKEND=baseline，正常启动不需要加载本地决策模型。
+编辑 .env，至少设置 baseline 使用的 ANTHROPIC_API_KEY 和唯一的 REDIS_PASSWORD。再将同一 DeepSeek API 凭证安全映射到被 Git 忽略的 `.env.openjev`，设置 `OPENAI_BASE_URL=https://api.deepseek.com` 和 `OPENJEV_MODEL=deepseek-flash`；不要把 Anthropic-compatible 的 `/anthropic` URL 用作 OpenJev 的模型地址。Compose 默认选择 `ECHOMIND_DECISION_BACKEND=local` 与 `ECHOMIND_LOCAL_DECISION_PROVIDER=openjev_http`；若改为 baseline 可禁用决策复核。
 
 ```bash
 docker compose up -d --build
@@ -124,9 +135,9 @@ docker compose logs -f echomind
 
 Dockerfile 使用 Python 3.12，并在构建时通过 CPU wheel index 安装 llama-cpp-python、下载 ChromaDB ONNX embedding 模型。Docker 配置和依赖需访问相应包源/模型源；镜像构建是否成功取决于这些来源在运行环境中的可访问性。.dockerignore 排除 models/*.gguf，Compose 将本地 models/ 以只读目录挂载到 API 容器，因此权重由 Git LFS 单独提供，不复制进镜像。
 
-要启用本地决策，在 .env 中将 ECHOMIND_DECISION_BACKEND 改为 local。需先完成 git lfs pull，模型文件位于 models/decider-2b-v11-Q4_K_M.gguf，容器路径由 Compose 设置为 /app/models/decider-2b-v11-Q4_K_M.gguf。本地模型约 1.27 GB。Mapika 模型与 models/decide_gguf.py 的来源和许可证说明见 [models/README.md](models/README.md)；模型采用 Apache-2.0 并保留上游许可证文件。
+如需改用原 Mapika 本地决策器，在 .env 中设置 `ECHOMIND_LOCAL_DECISION_PROVIDER=mapika_gguf`。需先完成 git lfs pull，模型文件位于 models/decider-2b-v11-Q4_K_M.gguf，容器路径由 Compose 设置为 /app/models/decider-2b-v11-Q4_K_M.gguf。本地模型约 1.27 GB。Mapika 模型与 models/decide_gguf.py 的来源和许可证说明见 [models/README.md](models/README.md)；模型采用 Apache-2.0 并保留上游许可证文件。
 
-ECHOMIND_LOCAL_DECISION_PROVIDER=openjev_http 是面向自托管 OpenJev-compatible HTTP 服务的适配选项。它不是官方 JEV API 连接；本项目没有接通官方 JEV，也没有声称 Mapika 模型等价于 JEV。
+当前实际使用固定提交构建的 SiliconLabAI/OpenJev 服务，EchoMind 调用其 `/api/evaluate` oneshot 接口。OpenJev 的 `/v1/systemone` decider 模式是转发到兼容服务的另一条路径，本配置未启用；TypeSafe 官方 Jev 适配器只完成 mock 契约测试，未接入官方服务或使用官方 API Key。OpenJev、Mapika 与官方 Jev 是不同实现，不能互相等同。
 
 ## 常用接口
 
@@ -148,7 +159,7 @@ POST /eval/run 会更新 EVAL_BASELINE_PATH 指定的回归基线文件。固定
 
 - 本仓库原有许可证与版权文件按仓库内容保留。
 - 本地决策模型来自 [Mapika/decider-2b-GGUF](https://huggingface.co/Mapika/decider-2b-GGUF)，Apache-2.0；上游来源、适配说明与许可证文本见 [models/README.md](models/README.md) 与 models/LICENSE-APACHE-2.0.txt。
-- Mapika 是此项目选择的开源本地决策模型，不是官方 JEV 模型。官方 JEV 尚未接入。
+- 独立 OpenJev 服务固定到 SiliconLabAI/OpenJev 的 MIT 许可提交；它以 DeepSeek 的 OpenAI-compatible API 执行 oneshot 决策，不是 TypeSafe 官方 Jev 服务。官方 Jev 尚未接入。
 
 ## 目录
 

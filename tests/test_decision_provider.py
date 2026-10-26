@@ -7,13 +7,14 @@ from core.decision_provider import (
     DecisionResult,
     DecisionStatus,
     MapikaGgufProvider,
-    OpenJevProvider,
+    OfficialJevProvider,
+    OpenJevApiProvider,
     create_local_decision_provider,
 )
 from core.intent_recognizer import IntentCategory, IntentRecognizer, UrgencyLevel
 
 
-class StubOpenJevProvider(OpenJevProvider):
+class StubOpenJevProvider(OpenJevApiProvider):
     def __init__(self, body=None, error=None):
         super().__init__("http://local-decider:8000")
         self.body = body
@@ -37,9 +38,9 @@ class FakeDecisionProvider:
         return self.result
 
 
-def test_openjev_provider_sends_system_one_request_and_parses_choice():
+def test_openjev_provider_sends_oneshot_request_and_parses_choice():
     provider = StubOpenJevProvider(
-        body={"answers": {"intent": {"choice": "billing", "x_p_max": 0.82}}}
+        body={"answers": {"intent": {"type": "choice", "choice": "billing", "confidence": 0.82}}}
     )
 
     result = asyncio.run(provider.decide(
@@ -51,12 +52,33 @@ def test_openjev_provider_sends_system_one_request_and_parses_choice():
     assert result.status is DecisionStatus.DECIDED
     assert result.label == "billing"
     assert result.confidence == 0.82
+    assert provider.payload["model"] == "deepseek-flash"
+    assert provider.payload["mode"] == "oneshot"
     assert provider.payload["state"]["message"] == "重复扣款了"
     assert provider.payload["state"]["history"][0]["content"] == "上轮内容"
     assert provider.payload["questions"]["intent"]["criteria"]["other"] == "其它"
 
 
-def test_openjev_http_adapter_uses_local_system_one_endpoint_and_optional_key():
+def test_openjev_provider_can_be_configured_for_decider_forwarding():
+    provider = OpenJevApiProvider(
+        "http://local-decider:3001", model="deepseek-flash", mode="decider",
+    )
+    payload = provider._payload("账单重复扣款", {"billing": "账单", "other": "其它"}, None)
+
+    assert payload["mode"] == "decider"
+    assert payload["model"] == "deepseek-flash"
+
+
+def test_openjev_provider_rejects_unsupported_mode():
+    try:
+        OpenJevApiProvider("http://openjev:3001", mode="parallel")
+    except ValueError as exc:
+        assert "oneshot or decider" in str(exc)
+    else:
+        raise AssertionError("unsupported OpenJev mode should be rejected")
+
+
+def test_openjev_http_adapter_posts_api_evaluate_without_authentication():
     calls = []
 
     class Response:
@@ -64,7 +86,7 @@ def test_openjev_http_adapter_uses_local_system_one_endpoint_and_optional_key():
             return None
 
         def json(self):
-            return {"answers": {"intent": {"choice": "greeting"}}}
+            return {"answers": {"intent": {"type": "choice", "choice": "greeting"}}}
 
     class Client:
         def __init__(self, timeout):
@@ -83,20 +105,81 @@ def test_openjev_http_adapter_uses_local_system_one_endpoint_and_optional_key():
     original_client = decision_provider_module.httpx.AsyncClient
     decision_provider_module.httpx.AsyncClient = Client
     try:
-        provider = OpenJevProvider("http://127.0.0.1:8002/", timeout_seconds=2.0, api_key="local")
-        result = asyncio.run(provider.decide("你好", {"greeting": "问候"}))
+        provider = OpenJevApiProvider("http://127.0.0.1:8002/", timeout_seconds=2.0)
+        result = asyncio.run(provider.decide("你好", {"greeting": "问候", "other": "其它"}))
     finally:
         decision_provider_module.httpx.AsyncClient = original_client
 
     assert result.status is DecisionStatus.DECIDED
-    assert calls[0][0] == "http://127.0.0.1:8002/v1/systemone"
-    assert calls[0][2]["Authorization"] == "Bearer local"
+    assert calls[0][0] == "http://127.0.0.1:8002/api/evaluate"
+    assert calls[0][1]["mode"] == "oneshot"
+    assert calls[0][1]["model"] == "deepseek-flash"
+    assert calls[0][1]["temperature"] == 0
+    assert calls[0][1]["questions"]["intent"]["type"] == "choice"
+    assert "Authorization" not in calls[0][2]
+
+
+def test_official_jev_provider_uses_model_state_questions_and_bearer_key(monkeypatch):
+    calls = []
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "model": "jev-latest",
+                "answers": {"intent": {"type": "choice", "choice": "billing"}},
+                "usage": {"input_tokens": 12, "output_tokens": 2},
+            }
+
+    class Client:
+        def __init__(self, timeout):
+            assert timeout == 2.5
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return False
+
+        async def post(self, url, json, headers):
+            calls.append((url, json, headers))
+            return Response()
+
+    monkeypatch.setattr(decision_provider_module.httpx, "AsyncClient", Client)
+    provider = OfficialJevProvider(
+        "https://api.typesafe.ai/", model="jev-latest", timeout_seconds=2.5,
+        api_key="mock-contract-key",
+    )
+    result = asyncio.run(provider.decide(
+        "重复扣款了",
+        {"billing": "账单、扣款", "other": "其它"},
+    ))
+
+    assert result.status is DecisionStatus.DECIDED
+    assert result.source == "official_jev"
+    assert result.label == "billing"
+    assert calls[0][0] == "https://api.typesafe.ai/v1/systemone"
+    assert calls[0][1]["model"] == "jev-latest"
+    assert calls[0][1]["state"]["message"] == "重复扣款了"
+    assert calls[0][1]["questions"]["intent"]["type"] == "choice"
+    assert calls[0][2]["Authorization"] == "Bearer mock-contract-key"
+
+
+def test_official_jev_factory_stays_disabled_without_api_key(monkeypatch):
+    monkeypatch.setenv("ECHOMIND_LOCAL_DECISION_PROVIDER", "official_jev")
+    monkeypatch.delenv("ECHOMIND_OFFICIAL_JEV_API_KEY", raising=False)
+
+    assert create_local_decision_provider() is None
 
 
 def test_openjev_provider_abstains_on_unknown_choice():
-    provider = StubOpenJevProvider(body={"answers": {"intent": {"choice": "not_a_candidate"}}})
+    provider = StubOpenJevProvider(body={"answers": {"intent": {
+        "type": "choice", "choice": "not_a_candidate",
+    }}})
 
-    result = asyncio.run(provider.decide("你好", {"greeting": "问候"}))
+    result = asyncio.run(provider.decide("你好", {"greeting": "问候", "other": "其它"}))
 
     assert result.status is DecisionStatus.ABSTAINED
     assert result.error_code == "missing_or_unknown_choice"
@@ -105,10 +188,44 @@ def test_openjev_provider_abstains_on_unknown_choice():
 def test_openjev_provider_maps_timeout_to_status():
     provider = StubOpenJevProvider(error=httpx.TimeoutException("timeout"))
 
-    result = asyncio.run(provider.decide("你好", {"greeting": "问候"}))
+    result = asyncio.run(provider.decide("你好", {"greeting": "问候", "other": "其它"}))
 
     assert result.status is DecisionStatus.TIMEOUT
     assert result.error_code == "timeout"
+
+
+def test_openjev_provider_maps_http_failure_without_leaking_response_body():
+    request = httpx.Request("POST", "http://openjev:3001/api/evaluate")
+    response = httpx.Response(503, request=request, text="contains-no-secret")
+    provider = StubOpenJevProvider(
+        error=httpx.HTTPStatusError("service unavailable", request=request, response=response)
+    )
+
+    result = asyncio.run(provider.decide("你好", {"greeting": "问候", "other": "其它"}))
+
+    assert result.status is DecisionStatus.ERROR
+    assert result.error_code == "invalid_or_unavailable_response"
+
+
+def test_openjev_provider_rejects_wrong_answer_type_and_ignores_invalid_confidence():
+    invalid_type = StubOpenJevProvider(body={"answers": {"intent": {
+        "type": "noul", "choice": "greeting",
+    }}})
+    invalid_confidence = StubOpenJevProvider(body={"answers": {"intent": {
+        "type": "choice", "choice": "greeting", "confidence": float("nan"),
+    }}})
+
+    type_result = asyncio.run(invalid_type.decide(
+        "你好", {"greeting": "问候", "other": "其它"},
+    ))
+    confidence_result = asyncio.run(invalid_confidence.decide(
+        "你好", {"greeting": "问候", "other": "其它"},
+    ))
+
+    assert type_result.status is DecisionStatus.ABSTAINED
+    assert type_result.error_code == "missing_or_invalid_answer_type"
+    assert confidence_result.status is DecisionStatus.DECIDED
+    assert confidence_result.confidence is None
 
 
 def test_mapika_gguf_provider_maps_choice_and_confidence_without_blocking_loop():
@@ -165,6 +282,30 @@ def test_local_provider_factory_is_lazy_and_defaults_to_mapika(monkeypatch):
 
     assert isinstance(provider, MapikaGgufProvider)
     assert str(provider.model_path).endswith("decider-2b-v11-Q4_K_M.gguf")
+
+
+def test_local_provider_factory_selects_openjev_http(monkeypatch):
+    monkeypatch.setenv("ECHOMIND_LOCAL_DECISION_PROVIDER", "openjev_http")
+    monkeypatch.setenv("ECHOMIND_OPENJEV_BASE_URL", "http://openjev:3001")
+    monkeypatch.setenv("ECHOMIND_OPENJEV_MODEL", "deepseek-flash")
+
+    provider = create_local_decision_provider()
+
+    assert isinstance(provider, OpenJevApiProvider)
+    assert provider.base_url == "http://openjev:3001"
+    assert provider.model == "deepseek-flash"
+    assert provider.mode == "oneshot"
+
+
+def test_local_provider_factory_can_select_openjev_decider_mode(monkeypatch):
+    monkeypatch.setenv("ECHOMIND_LOCAL_DECISION_PROVIDER", "openjev_http")
+    monkeypatch.setenv("ECHOMIND_OPENJEV_MODE", "decider")
+    monkeypatch.setenv("ECHOMIND_OPENJEV_MODEL", "deepseek-flash")
+
+    provider = create_local_decision_provider()
+
+    assert isinstance(provider, OpenJevApiProvider)
+    assert provider.mode == "decider"
 
 
 def _make_recognizer(provider, llm_result, pattern_result):

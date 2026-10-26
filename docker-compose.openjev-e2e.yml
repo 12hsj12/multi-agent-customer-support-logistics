@@ -1,0 +1,45 @@
+# Test-only override. The OpenJev application remains the pinned upstream
+# service; only its upstream OpenAI-compatible model endpoint is a local stub.
+services:
+  openjev:
+    environment:
+      OPENAI_API_KEY: e2e-only-dummy-key
+      OPENAI_BASE_URL: http://mock-openai:8080/v1
+      OPENJEV_MODEL: e2e-mock
+    depends_on:
+      mock-openai:
+        condition: service_healthy
+
+  mock-openai:
+    image: python:3.12-slim
+    working_dir: /test
+    command: ["python", "mock_openai_server.py"]
+    volumes:
+      - ./tests/mock_openai_server.py:/test/mock_openai_server.py:ro
+    expose:
+      - "8080"
+    networks:
+      - echomind-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  echomind-openjev-e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    command: ["python", "tests/openjev_docker_e2e.py"]
+    environment:
+      PYTHONPATH: /app
+      ECHOMIND_OPENJEV_BASE_URL: http://openjev:3001
+      ECHOMIND_OPENJEV_MODEL: e2e-mock
+      ECHOMIND_OPENJEV_MODE: oneshot
+      ECHOMIND_OPENJEV_TIMEOUT_SECONDS: "10"
+    depends_on:
+      openjev:
+        condition: service_healthy
+    networks:
+      - echomind-network

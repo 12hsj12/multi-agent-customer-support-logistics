@@ -9,6 +9,7 @@ venv/
 
 # 环境变量（含敏感信息）
 .env
+.env.openjev
 
 # 数据目录
 data/*
@@ -25,6 +26,8 @@ data/eval/g4_results/*
 !data/eval/g4_results/g0_baseline.json
 !data/eval/g4_results/g2_logistics_final.json
 !data/eval/g4_results/g3_local.json
+!data/eval/g5_results/
+!data/eval/g5_results/**
 logs/
 
 # IDE

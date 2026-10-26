@@ -1,0 +1,27 @@
+# Full FastAPI /chat path with real OpenJev + DeepSeek, bound to loopback only.
+services:
+  echomind:
+    ports: !override
+      - "127.0.0.1:18000:8000"
+    environment:
+      - ECHOMIND_DECISION_TRIGGER_CONFIDENCE=1.0
+      - ECHOMIND_LLM_PRIORITY_CONFIDENCE=1.0
+      - ECHOMIND_OPENJEV_TIMEOUT_SECONDS=30
+      - ECHOMIND_OPENJEV_MODE=oneshot
+
+  echomind-openjev-chat-e2e:
+    profiles:
+      - openjev-chat-e2e
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    command: ["python", "tests/openjev_chat_e2e.py"]
+    environment:
+      - PYTHONPATH=/app
+      - ECHOMIND_CHAT_E2E_BASE_URL=http://echomind:8000
+    depends_on:
+      echomind:
+        condition: service_healthy
+    networks:
+      - echomind-network

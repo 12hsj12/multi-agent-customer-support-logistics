@@ -1,0 +1,707 @@
+{
+  "schema_version": "openjev-paired-benchmark-v1",
+  "dataset_id": "echomind-g4-intents-v1",
+  "dataset_sha256": "007333f7efbc7dc469af2b1a644aefaf4ad6159f72e3f7f9a991e0ad5768e46e",
+  "source_revision": "working-tree",
+  "source_sha256": "9faff4199c5b971328a94648d1013195502ea24faf3492924474ea53b6274da1",
+  "timestamp_utc": "2026-10-26T02:41:16.138095+00:00",
+  "sample_count": 38,
+  "class_distribution": {
+    "account": 1,
+    "complaint": 2,
+    "greeting": 2,
+    "human_handoff": 2,
+    "invoice": 2,
+    "logistics": 3,
+    "logistics_address": 3,
+    "logistics_damaged": 3,
+    "logistics_delay": 3,
+    "logistics_dispute": 4,
+    "logistics_lost": 3,
+    "other": 2,
+    "payment_issue": 2,
+    "refund": 2,
+    "request": 1,
+    "technical_login": 3
+  },
+  "configuration": {
+    "baseline_backend": "three-way fusion",
+    "enhanced_backend": "OpenJev /api/evaluate mode=oneshot",
+    "llm_model": "deepseek-flash",
+    "openjev_model": "deepseek-flash",
+    "openjev_timeout_seconds": 8.0,
+    "decision_trigger_confidence": 0.65,
+    "llm_priority_confidence": 0.85
+  },
+  "metrics": {
+    "common_labels": {
+      "baseline": {
+        "total": 36,
+        "correct": 32,
+        "accuracy": 0.8889,
+        "macro_f1": 0.9065,
+        "per_class": {
+          "account": {
+            "support": 1,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "complaint": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "greeting": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6667
+          },
+          "human_handoff": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "invoice": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "logistics": {
+            "support": 18,
+            "precision": 1.0,
+            "recall": 0.9444,
+            "f1": 0.9714
+          },
+          "other": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6667
+          },
+          "payment_issue": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6667
+          },
+          "refund": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "request": {
+            "support": 1,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "technical_login": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        }
+      },
+      "openjev": {
+        "total": 36,
+        "correct": 34,
+        "accuracy": 0.9444,
+        "macro_f1": 0.9394,
+        "per_class": {
+          "account": {
+            "support": 1,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "complaint": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "greeting": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6667
+          },
+          "human_handoff": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "invoice": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "logistics": {
+            "support": 18,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "other": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 0.5,
+            "f1": 0.6667
+          },
+          "payment_issue": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "refund": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "request": {
+            "support": 1,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "technical_login": {
+            "support": 2,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        }
+      }
+    },
+    "fine_logistics_labels": {
+      "baseline": {
+        "total": 15,
+        "correct": 13,
+        "accuracy": 0.8667,
+        "macro_f1": 0.8714,
+        "per_class": {
+          "logistics_address": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "logistics_damaged": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 0.3333,
+            "f1": 0.5
+          },
+          "logistics_delay": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "logistics_dispute": {
+            "support": 3,
+            "precision": 0.75,
+            "recall": 1.0,
+            "f1": 0.8571
+          },
+          "logistics_lost": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        }
+      },
+      "openjev": {
+        "total": 15,
+        "correct": 15,
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "per_class": {
+          "logistics_address": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "logistics_damaged": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "logistics_delay": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "logistics_dispute": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "logistics_lost": {
+            "support": 3,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        }
+      }
+    },
+    "latency_ms": {
+      "baseline_p50": 1356.16,
+      "baseline_p95": 2442.44,
+      "openjev_p50": 1512.81,
+      "openjev_p95": 7149.95,
+      "openjev_decision_p50": 3103.27,
+      "openjev_decision_p95": 5635.65
+    },
+    "openjev_invocations": 6,
+    "openjev_applied_decisions": 6,
+    "openjev_fallback_or_abstain": 0,
+    "openjev_status_counts": {
+      "applied": 6,
+      "skipped": 32
+    },
+    "intent_llm_calls_per_arm": 38,
+    "intent_llm_failure_events": {
+      "baseline": 4,
+      "openjev_enhanced": 6
+    },
+    "valid_model_comparison": true
+  },
+  "cases": [
+    {
+      "id": "lost_01",
+      "expected_intent": "logistics_lost",
+      "baseline_intent": "logistics_lost",
+      "openjev_intent": "logistics_lost",
+      "baseline_latency_ms": 1127.98,
+      "openjev_latency_ms": 1927.42,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "lost_02",
+      "expected_intent": "logistics_lost",
+      "baseline_intent": "logistics_lost",
+      "openjev_intent": "logistics_lost",
+      "baseline_latency_ms": 1195.9,
+      "openjev_latency_ms": 1290.09,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "lost_03",
+      "expected_intent": "logistics_lost",
+      "baseline_intent": "logistics_lost",
+      "openjev_intent": "logistics_lost",
+      "baseline_latency_ms": 989.37,
+      "openjev_latency_ms": 1714.54,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "damaged_01",
+      "expected_intent": "logistics_damaged",
+      "baseline_intent": "logistics_damaged",
+      "openjev_intent": "logistics_damaged",
+      "baseline_latency_ms": 1693.86,
+      "openjev_latency_ms": 1380.6,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "damaged_02",
+      "expected_intent": "logistics_damaged",
+      "baseline_intent": "order_status",
+      "openjev_intent": "logistics_damaged",
+      "baseline_latency_ms": 2158.53,
+      "openjev_latency_ms": 4867.1,
+      "decision_source": "openjev",
+      "decision_status": "applied",
+      "decision_latency_ms": 2293.55
+    },
+    {
+      "id": "damaged_03",
+      "expected_intent": "logistics_damaged",
+      "baseline_intent": "logistics_dispute",
+      "openjev_intent": "logistics_damaged",
+      "baseline_latency_ms": 2074.91,
+      "openjev_latency_ms": 8236.02,
+      "decision_source": "openjev",
+      "decision_status": "applied",
+      "decision_latency_ms": 5635.65
+    },
+    {
+      "id": "dispute_01",
+      "expected_intent": "logistics_dispute",
+      "baseline_intent": "logistics_dispute",
+      "openjev_intent": "logistics_dispute",
+      "baseline_latency_ms": 1298.47,
+      "openjev_latency_ms": 1557.7,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "dispute_02",
+      "expected_intent": "logistics_dispute",
+      "baseline_intent": "logistics_dispute",
+      "openjev_intent": "logistics_dispute",
+      "baseline_latency_ms": 1496.9,
+      "openjev_latency_ms": 2020.84,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "dispute_03",
+      "expected_intent": "logistics_dispute",
+      "baseline_intent": "logistics_dispute",
+      "openjev_intent": "logistics_dispute",
+      "baseline_latency_ms": 1679.22,
+      "openjev_latency_ms": 1667.51,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "delay_01",
+      "expected_intent": "logistics_delay",
+      "baseline_intent": "logistics_delay",
+      "openjev_intent": "logistics_delay",
+      "baseline_latency_ms": 1238.12,
+      "openjev_latency_ms": 1181.77,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "delay_02",
+      "expected_intent": "logistics_delay",
+      "baseline_intent": "logistics_delay",
+      "openjev_intent": "logistics_delay",
+      "baseline_latency_ms": 1272.99,
+      "openjev_latency_ms": 1418.11,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "delay_03",
+      "expected_intent": "logistics_delay",
+      "baseline_intent": "logistics_delay",
+      "openjev_intent": "logistics_delay",
+      "baseline_latency_ms": 1331.53,
+      "openjev_latency_ms": 1263.59,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "address_01",
+      "expected_intent": "logistics_address",
+      "baseline_intent": "logistics_address",
+      "openjev_intent": "logistics_address",
+      "baseline_latency_ms": 1403.8,
+      "openjev_latency_ms": 1194.8,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "address_02",
+      "expected_intent": "logistics_address",
+      "baseline_intent": "logistics_address",
+      "openjev_intent": "logistics_address",
+      "baseline_latency_ms": 834.9,
+      "openjev_latency_ms": 1286.6,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "address_03",
+      "expected_intent": "logistics_address",
+      "baseline_intent": "logistics_address",
+      "openjev_intent": "logistics_address",
+      "baseline_latency_ms": 918.33,
+      "openjev_latency_ms": 1265.98,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "logistics_01",
+      "expected_intent": "logistics",
+      "baseline_intent": "logistics",
+      "openjev_intent": "logistics",
+      "baseline_latency_ms": 1073.57,
+      "openjev_latency_ms": 940.58,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "logistics_02",
+      "expected_intent": "logistics",
+      "baseline_intent": "logistics",
+      "openjev_intent": "logistics",
+      "baseline_latency_ms": 1999.5,
+      "openjev_latency_ms": 1704.36,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "logistics_03",
+      "expected_intent": "logistics",
+      "baseline_intent": "logistics",
+      "openjev_intent": "logistics",
+      "baseline_latency_ms": 1161.03,
+      "openjev_latency_ms": 1512.81,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "greeting_01",
+      "expected_intent": "greeting",
+      "baseline_intent": "greeting",
+      "openjev_intent": "greeting",
+      "baseline_latency_ms": 2394.3,
+      "openjev_latency_ms": 1956.2,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "greeting_02",
+      "expected_intent": "greeting",
+      "baseline_intent": "query",
+      "openjev_intent": "query",
+      "baseline_latency_ms": 1430.42,
+      "openjev_latency_ms": 1513.39,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "complaint_01",
+      "expected_intent": "complaint",
+      "baseline_intent": "complaint",
+      "openjev_intent": "complaint",
+      "baseline_latency_ms": 1613.49,
+      "openjev_latency_ms": 1718.18,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "complaint_02",
+      "expected_intent": "complaint",
+      "baseline_intent": "complaint",
+      "openjev_intent": "complaint",
+      "baseline_latency_ms": 1973.5,
+      "openjev_latency_ms": 2016.98,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "request_01",
+      "expected_intent": "request",
+      "baseline_intent": "request",
+      "openjev_intent": "request",
+      "baseline_latency_ms": 1965.32,
+      "openjev_latency_ms": 7149.95,
+      "decision_source": "openjev",
+      "decision_status": "applied",
+      "decision_latency_ms": 4546.48
+    },
+    {
+      "id": "request_02",
+      "expected_intent": "account",
+      "baseline_intent": "account",
+      "openjev_intent": "account",
+      "baseline_latency_ms": 1356.16,
+      "openjev_latency_ms": 1789.04,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "refund_01",
+      "expected_intent": "refund",
+      "baseline_intent": "refund",
+      "openjev_intent": "refund",
+      "baseline_latency_ms": 1423.4,
+      "openjev_latency_ms": 1055.21,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "refund_02",
+      "expected_intent": "refund",
+      "baseline_intent": "refund",
+      "openjev_intent": "refund",
+      "baseline_latency_ms": 1013.98,
+      "openjev_latency_ms": 1347.88,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "invoice_01",
+      "expected_intent": "invoice",
+      "baseline_intent": "invoice",
+      "openjev_intent": "invoice",
+      "baseline_latency_ms": 1175.54,
+      "openjev_latency_ms": 1110.92,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "invoice_02",
+      "expected_intent": "invoice",
+      "baseline_intent": "invoice",
+      "openjev_intent": "invoice",
+      "baseline_latency_ms": 913.86,
+      "openjev_latency_ms": 1116.58,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "payment_01",
+      "expected_intent": "payment_issue",
+      "baseline_intent": "billing",
+      "openjev_intent": "payment_issue",
+      "baseline_latency_ms": 2482.85,
+      "openjev_latency_ms": 1832.37,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "payment_02",
+      "expected_intent": "payment_issue",
+      "baseline_intent": "payment_issue",
+      "openjev_intent": "payment_issue",
+      "baseline_latency_ms": 1691.71,
+      "openjev_latency_ms": 1344.46,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "login_01",
+      "expected_intent": "technical_login",
+      "baseline_intent": "technical_login",
+      "openjev_intent": "technical_login",
+      "baseline_latency_ms": 1238.55,
+      "openjev_latency_ms": 1479.56,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "login_02",
+      "expected_intent": "technical_login",
+      "baseline_intent": "technical_login",
+      "openjev_intent": "technical_login",
+      "baseline_latency_ms": 1753.79,
+      "openjev_latency_ms": 1022.87,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "handoff_01",
+      "expected_intent": "human_handoff",
+      "baseline_intent": "human_handoff",
+      "openjev_intent": "human_handoff",
+      "baseline_latency_ms": 1014.42,
+      "openjev_latency_ms": 1454.75,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "handoff_02",
+      "expected_intent": "human_handoff",
+      "baseline_intent": "human_handoff",
+      "openjev_intent": "human_handoff",
+      "baseline_latency_ms": 1117.2,
+      "openjev_latency_ms": 1157.22,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "other_01",
+      "expected_intent": "other",
+      "baseline_intent": "other",
+      "openjev_intent": "other",
+      "baseline_latency_ms": 1207.27,
+      "openjev_latency_ms": 4476.5,
+      "decision_source": "openjev",
+      "decision_status": "applied",
+      "decision_latency_ms": 1914.4
+    },
+    {
+      "id": "other_02",
+      "expected_intent": "other",
+      "baseline_intent": "query",
+      "openjev_intent": "query",
+      "baseline_latency_ms": 1557.98,
+      "openjev_latency_ms": 2069.1,
+      "decision_source": "baseline",
+      "decision_status": "skipped",
+      "decision_latency_ms": 0.0
+    },
+    {
+      "id": "composite_01",
+      "expected_intent": "technical_login",
+      "baseline_intent": "technical_login",
+      "openjev_intent": "technical_login",
+      "baseline_latency_ms": 2080.82,
+      "openjev_latency_ms": 5341.55,
+      "decision_source": "openjev",
+      "decision_status": "applied",
+      "decision_latency_ms": 3208.54
+    },
+    {
+      "id": "composite_02",
+      "expected_intent": "logistics_dispute",
+      "baseline_intent": "billing",
+      "openjev_intent": "logistics_dispute",
+      "baseline_latency_ms": 2442.44,
+      "openjev_latency_ms": 5677.41,
+      "decision_source": "openjev",
+      "decision_status": "applied",
+      "decision_latency_ms": 3103.27
+    }
+  ]
+}

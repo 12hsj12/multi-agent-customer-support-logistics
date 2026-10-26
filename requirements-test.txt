@@ -1,0 +1,2 @@
+# Runtime dependencies (including httpx and anthropic) come from requirements.txt.
+pytest==9.1.1
